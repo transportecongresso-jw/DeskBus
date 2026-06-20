@@ -1,0 +1,405 @@
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Bus, Plus, Pencil, Trash2, Users, ChevronRight } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import { Vehicle, Congregation, VehicleType } from '../types'
+import { PageHeader } from '../components/layout/PageHeader'
+import { Card } from '../components/ui/Card'
+import { Button } from '../components/ui/Button'
+import { Modal } from '../components/ui/Modal'
+import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
+import { Badge } from '../components/ui/Badge'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { Spinner } from '../components/ui/Spinner'
+import { HelpIcon } from '../components/ui/Tooltip'
+import { formatCurrency, formatVehicleType } from '../lib/utils'
+import toast from 'react-hot-toast'
+
+interface VehicleWithStats extends Vehicle {
+  occupied: number
+  congregation?: Congregation
+}
+
+const CAPACITY_OPTIONS = {
+  bus: [40, 42, 44, 46, 48, 50, 52, 54],
+  van: [10, 12, 15, 16, 18, 20],
+}
+
+export function VehiclesPage() {
+  const { isAdminGeneral, congregationIds } = useAuth()
+  const navigate = useNavigate()
+  const [vehicles, setVehicles] = useState<VehicleWithStats[]>([])
+  const [congregations, setCongregations] = useState<Congregation[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState<Vehicle | null>(null)
+  const [deleting, setDeleting] = useState<Vehicle | null>(null)
+
+  useEffect(() => { loadData() }, [])
+
+  async function loadData() {
+    setLoading(true)
+    // Load congregations
+    let cQuery = supabase.from('congregations').select('*').order('name')
+    if (!isAdminGeneral && congregationIds.length > 0) cQuery = cQuery.in('id', congregationIds)
+    const { data: congs } = await cQuery
+    setCongregations(congs ?? [])
+
+    const congIds = (congs ?? []).map(c => c.id)
+
+    // Load vehicles
+    let vQuery = supabase.from('vehicles').select('*').order('name')
+    if (congIds.length > 0) vQuery = vQuery.in('congregation_id', congIds)
+    const { data: vData } = await vQuery
+
+    if (!vData) { setLoading(false); return }
+
+    // Load assignments count per vehicle
+    const { data: assignments } = await supabase
+      .from('seat_assignments')
+      .select('vehicle_id')
+      .eq('status', 'active')
+      .in('vehicle_id', vData.map(v => v.id))
+
+    const withStats: VehicleWithStats[] = vData.map(v => ({
+      ...v,
+      occupied: assignments?.filter(a => a.vehicle_id === v.id).length ?? 0,
+      congregation: congs?.find(c => c.id === v.congregation_id),
+    }))
+
+    setVehicles(withStats)
+    setLoading(false)
+  }
+
+  async function handleDelete() {
+    if (!deleting) return
+    const { error } = await supabase.from('vehicles').delete().eq('id', deleting.id)
+    if (error) {
+      toast.error('Erro ao excluir veículo')
+    } else {
+      toast.success('Veículo excluído')
+      setDeleting(null)
+      loadData()
+    }
+  }
+
+  return (
+    <div className="animate-fade-in">
+      <PageHeader
+        title="Veículos"
+        subtitle="Gerencie os veículos e sua ocupação"
+        icon={<Bus className="w-6 h-6" />}
+        actions={
+          <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowForm(true) }}>
+            Novo Veículo
+          </Button>
+        }
+      />
+
+      {loading ? (
+        <Spinner className="py-20" label="Carregando veículos..." />
+      ) : vehicles.length === 0 ? (
+        <Card>
+          <div className="text-center py-12">
+            <Bus className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+            <h3 className="text-base font-medium text-stone-600 dark:text-stone-300 mb-1">Nenhum veículo cadastrado</h3>
+            <p className="text-sm text-stone-400 mb-4">Comece adicionando o primeiro veículo da congregação</p>
+            <Button onClick={() => setShowForm(true)} icon={<Plus className="w-4 h-4" />}>
+              Adicionar Veículo
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {vehicles.map(v => {
+            const pct = Math.min(100, Math.round((v.occupied / v.capacity) * 100))
+            const isFull = v.occupied >= v.capacity
+            const excess = v.occupied > v.capacity ? v.occupied - v.capacity : 0
+
+            return (
+              <Card key={v.id} padding="none" className="overflow-hidden group hover:shadow-md transition-shadow">
+                {/* Color bar */}
+                <div className={`h-1.5 w-full ${isFull ? 'bg-emerald-400' : excess > 0 ? 'bg-rose-400' : 'bg-amber-300'}`} />
+
+                <div className="p-5">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="font-semibold text-stone-800 dark:text-stone-100 text-base">{v.name}</h3>
+                      {v.congregation && (
+                        <p className="text-xs text-stone-400 mt-0.5">{v.congregation.name}</p>
+                      )}
+                    </div>
+                    <Badge variant={v.type === 'bus' ? 'info' : 'warning'}>
+                      {formatVehicleType(v.type)}
+                    </Badge>
+                  </div>
+
+                  {/* Stats row */}
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    <div className="text-center p-2 bg-stone-50 dark:bg-stone-700 rounded-lg">
+                      <p className="text-lg font-bold text-stone-700 dark:text-stone-200">{v.capacity}</p>
+                      <p className="text-[10px] text-stone-400">Lugares</p>
+                    </div>
+                    <div className="text-center p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                      <p className="text-lg font-bold text-amber-600">{v.occupied}</p>
+                      <p className="text-[10px] text-stone-400">Ocupados</p>
+                    </div>
+                    <div className={`text-center p-2 rounded-lg ${isFull ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-stone-50 dark:bg-stone-700'}`}>
+                      <p className={`text-lg font-bold ${isFull ? 'text-emerald-600' : 'text-stone-600 dark:text-stone-300'}`}>
+                        {Math.max(0, v.capacity - v.occupied)}
+                      </p>
+                      <p className="text-[10px] text-stone-400">Livres</p>
+                    </div>
+                  </div>
+
+                  {excess > 0 && (
+                    <div className="mb-3 px-3 py-1.5 bg-rose-50 dark:bg-rose-900/20 rounded-lg text-xs text-rose-600 text-center">
+                      ⚠️ {excess} passageiro{excess > 1 ? 's' : ''} excedente{excess > 1 ? 's' : ''}
+                    </div>
+                  )}
+
+                  {/* Progress */}
+                  <div className="mb-4">
+                    <div className="flex justify-between text-xs text-stone-400 mb-1.5">
+                      <span>Ocupação</span>
+                      <span>{pct}%</span>
+                    </div>
+                    <div className="h-2 bg-stone-100 dark:bg-stone-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${isFull ? 'bg-emerald-500' : pct > 80 ? 'bg-amber-400' : 'bg-amber-300'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-stone-400 mb-4">
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" />
+                      Passagem: {formatCurrency(v.ticket_price)}
+                    </span>
+                    {v.exported_at && (
+                      <Badge variant="success" dot>Lista exportada</Badge>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-3 border-t border-stone-100 dark:border-stone-700">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="flex-1"
+                      icon={<ChevronRight className="w-4 h-4" />}
+                      onClick={() => navigate(`/vehicles/${v.id}`)}
+                    >
+                      Gerenciar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Pencil className="w-4 h-4" />}
+                      onClick={() => { setEditing(v); setShowForm(true) }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Trash2 className="w-4 h-4" />}
+                      className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                      onClick={() => setDeleting(v)}
+                    />
+                  </div>
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      <VehicleForm
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        editing={editing}
+        congregations={congregations}
+        onSaved={() => { setShowForm(false); loadData() }}
+      />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        onConfirm={handleDelete}
+        title="Excluir Veículo"
+        message={`Excluir "${deleting?.name}"? Todos os assentos e distribuições serão removidos permanentemente.`}
+      />
+    </div>
+  )
+}
+
+// --- VehicleForm ---
+function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
+  open: boolean; onClose: () => void; editing: Vehicle | null;
+  congregations: Congregation[]; onSaved: () => void
+}) {
+  const { isAdminGeneral, congregationIds } = useAuth()
+  const [type, setType] = useState<VehicleType>('bus')
+  const [capacity, setCapacity] = useState(46)
+  const [name, setName] = useState('')
+  const [congregationId, setCongregationId] = useState('')
+  const [ticketPrice, setTicketPrice] = useState(0)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (editing) {
+      setType(editing.type)
+      setCapacity(editing.capacity)
+      setName(editing.name)
+      setCongregationId(editing.congregation_id)
+      setTicketPrice(editing.ticket_price)
+    } else {
+      setType('bus')
+      setCapacity(46)
+      setName('')
+      setCongregationId(isAdminGeneral ? '' : congregationIds[0] ?? '')
+      setTicketPrice(0)
+    }
+  }, [editing, open])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      if (editing) {
+        const { error } = await supabase.from('vehicles').update({
+          type, capacity, name, congregation_id: congregationId, ticket_price: ticketPrice
+        }).eq('id', editing.id)
+        if (error) throw error
+        toast.success('Veículo atualizado')
+      } else {
+        // Create vehicle
+        const { data: vehicle, error } = await supabase.from('vehicles').insert({
+          type, capacity, name, congregation_id: congregationId, ticket_price: ticketPrice,
+          export_count: 0,
+        }).select().single()
+        if (error) throw error
+
+        // Generate seats
+        const seats = Array.from({ length: capacity }, (_, i) => ({
+          vehicle_id: vehicle.id,
+          seat_number: i + 1,
+          row_number: Math.ceil((i + 1) / 4),
+          column_position: (i % 4) + 1,
+          is_driver: false,
+        }))
+        await supabase.from('seats').insert(seats)
+        toast.success('Veículo criado com mapa de assentos!')
+      }
+      onSaved()
+    } catch {
+      toast.error('Erro ao salvar veículo')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const capacities = CAPACITY_OPTIONS[type]
+
+  return (
+    <Modal open={open} onClose={onClose} title={editing ? 'Editar Veículo' : 'Novo Veículo'} size="md">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {isAdminGeneral && (
+          <Select
+            label="Congregação"
+            value={congregationId}
+            onChange={e => setCongregationId(e.target.value)}
+            options={congregations.map(c => ({ value: c.id, label: c.name }))}
+            placeholder="Selecione a congregação..."
+            required
+          />
+        )}
+
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5">
+            <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Tipo de Veículo <span className="text-rose-500">*</span></label>
+            <HelpIcon content="Escolha entre Ônibus (maior capacidade) ou Van (menor, mais ágil). O tipo define o layout visual do mapa de assentos." />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {(['bus', 'van'] as VehicleType[]).map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => { setType(t); setCapacity(CAPACITY_OPTIONS[t][0]) }}
+                className={`p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
+                  type === t
+                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
+                    : 'border-stone-200 dark:border-stone-600 hover:border-amber-200'
+                }`}
+              >
+                <Bus className={`w-7 h-7 mx-auto mb-1.5 ${type === t ? 'text-amber-500' : 'text-stone-400'}`} />
+                <p className={`text-sm font-medium ${type === t ? 'text-amber-700 dark:text-amber-400' : 'text-stone-500'}`}>
+                  {formatVehicleType(t)}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5">
+            <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Capacidade <span className="text-rose-500">*</span></label>
+            <HelpIcon content="Número total de assentos disponíveis para passageiros. O sistema gerará automaticamente o mapa visual com essa quantidade." />
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {capacities.map(cap => (
+              <button
+                key={cap}
+                type="button"
+                onClick={() => setCapacity(cap)}
+                className={`py-2 rounded-xl border-2 text-sm font-medium transition-all cursor-pointer ${
+                  capacity === cap
+                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                    : 'border-stone-200 dark:border-stone-600 text-stone-500 hover:border-amber-200'
+                }`}
+              >
+                {cap}
+              </button>
+            ))}
+            {/* Custom */}
+          </div>
+        </div>
+
+        <Input
+          label="Nome do Veículo"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder={`Ex: ${type === 'bus' ? 'Ônibus 1' : 'Van A'}`}
+          required
+          hint="Um nome para identificar facilmente este veículo"
+        />
+
+        <Input
+          label="Valor da Passagem (R$)"
+          type="number"
+          min="0"
+          step="0.01"
+          value={ticketPrice}
+          onChange={e => setTicketPrice(parseFloat(e.target.value) || 0)}
+          placeholder="0,00"
+          hint="Valor individual por passageiro neste veículo"
+        />
+
+        {!editing && (
+          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl text-xs text-amber-700 dark:text-amber-400">
+            ✨ O sistema irá gerar automaticamente {capacity} assentos numerados para este {formatVehicleType(type).toLowerCase()}.
+          </div>
+        )}
+
+        <div className="flex gap-3 mt-2">
+          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button type="submit" loading={loading} className="flex-1">
+            {editing ? 'Salvar' : 'Criar Veículo'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
