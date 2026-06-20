@@ -9,19 +9,21 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, actions, icon }: PageHeaderProps) {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center gap-3">
-        {icon && (
-          <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl text-amber-600 dark:text-amber-400">
-            {icon}
+    <div className="mb-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {icon && (
+            <div className="p-2 sm:p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl text-amber-600 dark:text-amber-400 flex-shrink-0">
+              {icon}
+            </div>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-stone-800 dark:text-stone-100 leading-tight">{title}</h1>
+            {subtitle && <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 mt-0.5 leading-snug">{subtitle}</p>}
           </div>
-        )}
-        <div>
-          <h1 className="text-2xl font-bold text-stone-800 dark:text-stone-100">{title}</h1>
-          {subtitle && <p className="text-sm text-stone-500 dark:text-stone-400 mt-0.5">{subtitle}</p>}
         </div>
+        {actions && <div className="flex items-center gap-2 flex-shrink-0">{actions}</div>}
       </div>
-      {actions && <div className="flex items-center gap-3">{actions}</div>}
     </div>
   )
 }

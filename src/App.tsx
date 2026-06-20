@@ -16,6 +16,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { CongregationDetailPage } from './pages/CongregationDetailPage'
 import { FinalizedListsPage } from './pages/FinalizedListsPage'
 import { AuditPage } from './pages/AuditPage'
+import { UsersPage } from './pages/UsersPage'
 import { PageSpinner } from './components/ui/Spinner'
 
 const queryClient = new QueryClient()
@@ -40,6 +41,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="congregations" element={<ProtectedRoute adminOnly><CongregationsPage /></ProtectedRoute>} />
         <Route path="congregations/:id" element={<CongregationDetailPage />} />
+        <Route path="users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
         <Route path="finalized-lists" element={<ProtectedRoute adminOnly><FinalizedListsPage /></ProtectedRoute>} />
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="vehicles/:id" element={<VehicleDetailPage />} />
