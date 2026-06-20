@@ -13,6 +13,9 @@ import { PassengersPage } from './pages/PassengersPage'
 import { BoardingPage } from './pages/BoardingPage'
 import { SearchPage } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { CongregationDetailPage } from './pages/CongregationDetailPage'
+import { FinalizedListsPage } from './pages/FinalizedListsPage'
+import { AuditPage } from './pages/AuditPage'
 import { PageSpinner } from './components/ui/Spinner'
 
 const queryClient = new QueryClient()
@@ -36,11 +39,14 @@ function AppRoutes() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="congregations" element={<ProtectedRoute adminOnly><CongregationsPage /></ProtectedRoute>} />
+        <Route path="congregations/:id" element={<CongregationDetailPage />} />
+        <Route path="finalized-lists" element={<ProtectedRoute adminOnly><FinalizedListsPage /></ProtectedRoute>} />
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="vehicles/:id" element={<VehicleDetailPage />} />
         <Route path="passengers" element={<PassengersPage />} />
         <Route path="boarding" element={<BoardingPage />} />
         <Route path="search" element={<SearchPage />} />
+        <Route path="audit" element={<AuditPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

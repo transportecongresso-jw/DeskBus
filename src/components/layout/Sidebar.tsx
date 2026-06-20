@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Bus, Users, Building2, LayoutDashboard, Search,
-  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight
+  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -19,10 +19,12 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },
   { to: '/congregations', icon: <Building2 className="w-5 h-5" />, label: 'Congregações', adminOnly: true },
+  { to: '/finalized-lists', icon: <CheckCircle2 className="w-5 h-5" />, label: 'Listas Finalizadas', adminOnly: true },
   { to: '/vehicles', icon: <Bus className="w-5 h-5" />, label: 'Veículos' },
   { to: '/passengers', icon: <Users className="w-5 h-5" />, label: 'Passageiros' },
   { to: '/boarding', icon: <ClipboardList className="w-5 h-5" />, label: 'Embarque' },
   { to: '/search', icon: <Search className="w-5 h-5" />, label: 'Pesquisa' },
+  { to: '/audit', icon: <Shield className="w-5 h-5" />, label: 'Auditoria' },
   { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Configurações' },
 ]
 

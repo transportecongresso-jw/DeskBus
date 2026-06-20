@@ -8,12 +8,17 @@ export interface Profile {
   created_at: string
 }
 
+export type ListStatus = 'in_progress' | 'finalized'
+
 export interface Congregation {
   id: string
   name: string
   city: string | null
   created_at: string
   created_by: string
+  list_status: ListStatus
+  finalized_at: string | null
+  finalized_by: string | null
 }
 
 export interface CongregationAdmin {
@@ -79,6 +84,8 @@ export interface SeatAssignment {
   boarding_observation: string | null
   cancelled_at: string | null
   cancellation_reason: string | null
+  substituted_from: string | null
+  substitution_reason: string | null
   created_at: string
   updated_at: string
   seat?: Seat
@@ -88,7 +95,7 @@ export interface SeatAssignment {
 
 export interface AuditLog {
   id: string
-  vehicle_id: string
+  vehicle_id: string | null
   congregation_id: string
   action_type: string
   description: string
@@ -106,7 +113,6 @@ export interface ExportRecord {
   created_at: string
 }
 
-// Enriched types for UI
 export interface SeatWithAssignment extends Seat {
   assignment?: SeatAssignment & { passenger: Passenger }
 }

@@ -3,6 +3,7 @@ import { Users, Plus, Pencil, Trash2, Search, Baby, ChevronDown, ChevronUp } fro
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { Passenger, DocumentType, Congregation } from '../types'
+import { logAction } from '../lib/audit'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -23,7 +24,7 @@ const DOC_OPTIONS = [
 ]
 
 export function PassengersPage() {
-  const { isAdminGeneral, congregationIds } = useAuth()
+  const { isAdminGeneral, congregationIds, user } = useAuth()
   const [passengers, setPassengers] = useState<(Passenger & { guardian?: Passenger; congregation?: Congregation })[]>([])
   const [congregations, setCongregations] = useState<Congregation[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,6 +63,12 @@ export function PassengersPage() {
     if (error) {
       toast.error('Não é possível excluir: passageiro pode estar em uso')
     } else {
+      await logAction({
+        congregationId: deleting.congregation_id,
+        actionType: 'passenger_deleted',
+        description: `Passageiro "${deleting.full_name}" removido`,
+        performedBy: user!.id,
+      })
       toast.success('Passageiro excluído')
       setDeleting(null)
       loadData()
@@ -234,7 +241,7 @@ interface PassengerFormProps {
 }
 
 function PassengerForm({ open, onClose, editing, congregations, passengers, onSaved }: PassengerFormProps) {
-  const { isAdminGeneral, congregationIds } = useAuth()
+  const { isAdminGeneral, congregationIds, user } = useAuth()
   const [fullName, setFullName] = useState('')
   const [docType, setDocType] = useState<DocumentType>('cpf')
   const [docNumber, setDocNumber] = useState('')
@@ -270,10 +277,22 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
       if (editing) {
         const { error } = await supabase.from('passengers').update(payload).eq('id', editing.id)
         if (error) throw error
+        await logAction({
+          congregationId: congregationId,
+          actionType: 'passenger_updated',
+          description: `Dados de "${fullName}" atualizados`,
+          performedBy: user!.id,
+        })
         toast.success('Passageiro atualizado')
       } else {
         const { error } = await supabase.from('passengers').insert(payload)
         if (error) throw error
+        await logAction({
+          congregationId: congregationId,
+          actionType: 'passenger_created',
+          description: `Passageiro "${fullName}" cadastrado`,
+          performedBy: user!.id,
+        })
         toast.success('Passageiro cadastrado')
       }
       onSaved()
