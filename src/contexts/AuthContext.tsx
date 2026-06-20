@@ -24,14 +24,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [congregationIds, setCongregationIds] = useState<string[]>([])
 
   async function loadProfile(userId: string) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    if (data) setProfile(data)
+    // Use security definer function to bypass RLS circular reference on profiles
+    const { data, error } = await supabase.rpc('get_my_profile')
+    if (data && data.length > 0) {
+      setProfile(data[0] as Profile)
+    } else {
+      // Fallback: direct query
+      const { data: fallback } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      if (fallback) setProfile(fallback)
+    }
 
-    // Load congregation IDs for congregation admins
     const { data: admins } = await supabase
       .from('congregation_admins')
       .select('congregation_id')
