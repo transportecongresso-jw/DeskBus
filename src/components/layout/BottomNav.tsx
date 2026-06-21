@@ -24,7 +24,7 @@ export function BottomNav() {
   ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 flex items-stretch lg:hidden"
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 flex items-stretch lg:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {items.map(item => (
         <NavLink
