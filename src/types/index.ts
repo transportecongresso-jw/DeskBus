@@ -80,6 +80,7 @@ export interface Vehicle {
   export_count: number
   exported_at: string | null
   post_close_changes: number | null
+  transport_company_id: string | null
   created_at: string
   congregation?: Congregation
   event_day?: EventDay
@@ -156,6 +157,54 @@ export interface ExportRecord {
 
 export interface SeatWithAssignment extends Seat {
   assignment?: SeatAssignment & { passenger: Passenger }
+}
+
+export interface TransportCompany {
+  id: string
+  name: string
+  cnpj: string | null
+  phone: string | null
+  contact_name: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface VehicleRating {
+  id: string
+  vehicle_id: string
+  congregation_id: string
+  event_id: string | null
+  rated_by: string | null
+  overall_stars: number
+  driver_rating: number | null
+  cleanliness_rating: number | null
+  comfort_rating: number | null
+  condition_rating: number | null
+  ac_rating: number | null
+  seatbelts: string | null
+  observations: string | null
+  created_at: string
+}
+
+export type InvoiceStatus = 'sent' | 'reviewed'
+
+export interface Invoice {
+  id: string
+  congregation_id: string
+  vehicle_id: string | null
+  event_id: string | null
+  transport_company_id: string | null
+  invoice_date: string
+  invoice_number: string | null
+  amount: number
+  notes: string | null
+  file_url: string | null
+  file_name: string | null
+  status: InvoiceStatus
+  reviewed_by: string | null
+  reviewed_at: string | null
+  uploaded_by: string | null
+  created_at: string
 }
 
 export interface VehicleStats {

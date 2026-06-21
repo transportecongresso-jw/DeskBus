@@ -4,7 +4,7 @@ import { Bus, Plus, Pencil, Trash2, Users, ChevronRight, CalendarDays } from 'lu
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useEvent } from '../contexts/EventContext'
-import { Vehicle, Congregation, VehicleType } from '../types'
+import { Vehicle, Congregation, VehicleType, TransportCompany } from '../types'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -34,6 +34,7 @@ export function VehiclesPage() {
   const navigate = useNavigate()
   const [vehicles, setVehicles] = useState<VehicleWithStats[]>([])
   const [congregations, setCongregations] = useState<Congregation[]>([])
+  const [companies, setCompanies] = useState<TransportCompany[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Vehicle | null>(null)
@@ -46,8 +47,11 @@ export function VehiclesPage() {
     setLoading(true)
     let cQuery = supabase.from('congregations').select('*').order('name')
     if (!isAdminGeneral && congregationIds.length > 0) cQuery = cQuery.in('id', congregationIds)
-    const { data: congs } = await cQuery
+    const [{ data: congs }, { data: comps }] = await Promise.all([
+      cQuery, supabase.from('transport_companies').select('*').order('name'),
+    ])
     setCongregations(congs ?? [])
+    setCompanies(comps ?? [])
 
     const congIds = (congs ?? []).map(c => c.id)
 
@@ -242,6 +246,7 @@ export function VehiclesPage() {
         onClose={() => setShowForm(false)}
         editing={editing}
         congregations={congregations}
+        companies={companies}
         onSaved={() => { setShowForm(false); loadData() }}
       />
 
@@ -257,9 +262,9 @@ export function VehiclesPage() {
 }
 
 // --- VehicleForm ---
-function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
+function VehicleForm({ open, onClose, editing, congregations, companies, onSaved }: {
   open: boolean; onClose: () => void; editing: Vehicle | null;
-  congregations: Congregation[]; onSaved: () => void
+  congregations: Congregation[]; companies: TransportCompany[]; onSaved: () => void
 }) {
   const { isAdminGeneral, congregationIds } = useAuth()
   const { events, selectedEvent, eventDays } = useEvent()
@@ -270,6 +275,7 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
   const [ticketPrice, setTicketPrice] = useState(0)
   const [eventId, setEventId] = useState<string>('')
   const [eventDayId, setEventDayId] = useState<string>('')
+  const [transportCompanyId, setTransportCompanyId] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
   const selectedEvents = events.filter(e => e.status === 'active')
@@ -284,6 +290,7 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
       setTicketPrice(editing.ticket_price)
       setEventId(editing.event_id ?? selectedEvent?.id ?? '')
       setEventDayId(editing.event_day_id ?? '')
+      setTransportCompanyId((editing as any).transport_company_id ?? '')
     } else {
       setType('bus')
       setCapacity(46)
@@ -292,6 +299,7 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
       setTicketPrice(0)
       setEventId(selectedEvent?.id ?? '')
       setEventDayId('')
+      setTransportCompanyId('')
     }
   }, [editing, open])
 
@@ -305,6 +313,7 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
         ticket_price: ticketPrice,
         event_id: eventId,
         event_day_id: eventDayId || null,
+        transport_company_id: transportCompanyId || null,
       }
       if (editing) {
         const { error } = await supabase.from('vehicles').update(payload).eq('id', editing.id)
@@ -413,6 +422,18 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
 
         <Input label="Valor da Passagem (R$)" type="number" min="0" step="0.01"
           value={ticketPrice} onChange={e => setTicketPrice(parseFloat(e.target.value) || 0)} placeholder="0,00" />
+
+        {companies.length > 0 && (
+          <Select
+            label="Empresa de Transporte (opcional)"
+            value={transportCompanyId}
+            onChange={e => setTransportCompanyId(e.target.value)}
+            options={[
+              { value: '', label: 'Nenhuma empresa vinculada' },
+              ...companies.map(c => ({ value: c.id, label: c.name })),
+            ]}
+          />
+        )}
 
         {!editing && (
           <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl text-xs text-amber-700 dark:text-amber-400">
