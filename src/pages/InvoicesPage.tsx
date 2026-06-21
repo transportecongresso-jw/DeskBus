@@ -37,6 +37,20 @@ export function InvoicesPage() {
   const [filterCong, setFilterCong] = useState('')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
+  async function downloadFile(url: string, fileName: string) {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch {
+      toast.error('Erro ao baixar o arquivo')
+    }
+  }
+
   useEffect(() => { loadData() }, [selectedEvent])
 
   async function loadData() {
@@ -180,16 +194,10 @@ export function InvoicesPage() {
                           Ver Nota
                         </Button>
                         {isAdminGeneral && (
-                          <a
-                            href={inv.file_url}
-                            download={inv.file_name ?? 'nota-fiscal'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Button variant="ghost" size="sm" icon={<Download className="w-4 h-4" />}>
-                              Baixar
-                            </Button>
-                          </a>
+                          <Button variant="ghost" size="sm" icon={<Download className="w-4 h-4" />}
+                            onClick={() => downloadFile(inv.file_url!, inv.file_name ?? 'nota-fiscal')}>
+                            Baixar
+                          </Button>
                         )}
                       </>
                     )}
