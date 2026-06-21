@@ -38,18 +38,27 @@ export function PassengersPage() {
   const [filterDay, setFilterDay] = useState('all')
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  useEffect(() => { loadData() }, [selectedEvent])
+  useEffect(() => {
+    // Guard: never fetch without knowing congregation scope
+    if (!isAdminGeneral && congregationIds.length === 0) {
+      setLoading(false)
+      return
+    }
+    loadData()
+  }, [selectedEvent, congregationIds, isAdminGeneral])
 
   async function loadData() {
     setLoading(true)
     let cQuery = supabase.from('congregations').select('*').order('name')
-    if (!isAdminGeneral && congregationIds.length > 0) cQuery = cQuery.in('id', congregationIds)
+    if (!isAdminGeneral) cQuery = cQuery.in('id', congregationIds)
     const { data: congs } = await cQuery
     setCongregations(congs ?? [])
 
     const congIds = (congs ?? []).map(c => c.id)
     let pQuery = supabase.from('passengers').select('*, guardian:guardian_id(*)').order('full_name')
+    // Always apply congregation filter — never fetch all passengers
     if (congIds.length > 0) pQuery = pQuery.in('congregation_id', congIds)
+    else { setPassengers([]); setLoading(false); return }
     if (selectedEvent) pQuery = pQuery.eq('event_id', selectedEvent.id)
     const { data } = await pQuery
 

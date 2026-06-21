@@ -39,7 +39,10 @@ export function BoardingPage() {
   const [obsModal, setObsModal] = useState<{ entry: BoardingEntry; obs: string } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { loadVehicles() }, [selectedEvent])
+  useEffect(() => {
+    if (!isAdminGeneral && congregationIds.length === 0) { setInitialLoading(false); return }
+    loadVehicles()
+  }, [selectedEvent, congregationIds, isAdminGeneral])
   useEffect(() => {
     if (selectedVehicle) {
       loadBoardingList(selectedVehicle)
@@ -55,7 +58,7 @@ export function BoardingPage() {
     setInitialLoading(true)
     setSelectedVehicle(null)
     let cQuery = supabase.from('congregations').select('*').order('name')
-    if (!isAdminGeneral && congregationIds.length > 0) cQuery = cQuery.in('id', congregationIds)
+    if (!isAdminGeneral) cQuery = cQuery.in('id', congregationIds)
     const { data: congs } = await cQuery
     setCongregations(congs ?? [])
 

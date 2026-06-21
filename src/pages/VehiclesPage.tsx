@@ -41,12 +41,15 @@ export function VehiclesPage() {
   const [deleting, setDeleting] = useState<Vehicle | null>(null)
   const [selectedDayId, setSelectedDayId] = useState<string>('all')
 
-  useEffect(() => { loadData() }, [selectedEvent])
+  useEffect(() => {
+    if (!isAdminGeneral && congregationIds.length === 0) { setLoading(false); return }
+    loadData()
+  }, [selectedEvent, congregationIds, isAdminGeneral])
 
   async function loadData() {
     setLoading(true)
     let cQuery = supabase.from('congregations').select('*').order('name')
-    if (!isAdminGeneral && congregationIds.length > 0) cQuery = cQuery.in('id', congregationIds)
+    if (!isAdminGeneral) cQuery = cQuery.in('id', congregationIds)
     const [{ data: congs }, { data: comps }] = await Promise.all([
       cQuery, supabase.from('transport_companies').select('*').order('name'),
     ])

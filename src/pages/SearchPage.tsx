@@ -40,15 +40,19 @@ export function SearchPage() {
     setSearched(true)
 
     try {
-      // Build congregation filter
+      // Build congregation filter — never search without scope
+      if (!isAdminGeneral && congregationIds.length === 0) {
+        setResults([]); setLoading(false); return
+      }
       let cQuery = supabase.from('congregations').select('id, name')
-      if (!isAdminGeneral && congregationIds.length > 0) cQuery = cQuery.in('id', congregationIds)
+      if (!isAdminGeneral) cQuery = cQuery.in('id', congregationIds)
       const { data: congs } = await cQuery
       const congIds = (congs ?? []).map(c => c.id)
 
-      // Search passengers
+      // Search passengers — always filtered by congregation
       let pQuery = supabase.from('passengers').select('*, guardian:guardian_id(*)')
       if (congIds.length > 0) pQuery = pQuery.in('congregation_id', congIds)
+      else { setResults([]); setLoading(false); return }
 
       const q = query.trim().toLowerCase()
       const { data: passengers } = await pQuery

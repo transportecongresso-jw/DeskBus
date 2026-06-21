@@ -30,13 +30,16 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [totalStats, setTotalStats] = useState({ congregations: 0, vehicles: 0, passengers: 0, finalized: 0, collected: 0 })
 
-  useEffect(() => { loadDashboard() }, [selectedEvent])
+  useEffect(() => {
+    if (!isAdminGeneral && congregationIds.length === 0) { setLoading(false); return }
+    loadDashboard()
+  }, [selectedEvent, congregationIds, isAdminGeneral])
 
   async function loadDashboard() {
     setLoading(true)
     try {
       let cQuery = supabase.from('congregations').select('*').order('name')
-      if (!isAdminGeneral && congregationIds.length > 0) cQuery = cQuery.in('id', congregationIds)
+      if (!isAdminGeneral) cQuery = cQuery.in('id', congregationIds)
       const { data: congs } = await cQuery
       if (!congs) { setLoading(false); return }
 
