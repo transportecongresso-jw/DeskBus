@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { EventSelector } from './EventSelector'
 import { cn } from '../../lib/utils'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
@@ -61,6 +62,9 @@ export function Sidebar() {
           </div>
         )}
       </div>
+
+      {/* Event selector */}
+      <EventSelector collapsed={collapsed} />
 
       {/* Nav */}
       <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">

@@ -3,7 +3,10 @@ import { supabase } from '../lib/supabase'
 import { Event, EventDay } from '../types'
 
 interface EventContextValue {
-  activeEvent: Event | null
+  events: Event[]
+  selectedEvent: Event | null
+  selectedEventId: string | null
+  setSelectedEventId: (id: string | null) => void
   eventDays: EventDay[]
   loading: boolean
   reload: () => void
@@ -11,43 +14,73 @@ interface EventContextValue {
 
 const EventContext = createContext<EventContextValue | null>(null)
 
+const STORAGE_KEY = 'deskbus_selected_event'
+
 export function EventProvider({ children }: { children: ReactNode }) {
-  const [activeEvent, setActiveEvent] = useState<Event | null>(null)
+  const [events, setEvents] = useState<Event[]>([])
   const [eventDays, setEventDays] = useState<EventDay[]>([])
+  const [selectedEventId, setSelectedEventIdState] = useState<string | null>(
+    () => localStorage.getItem(STORAGE_KEY)
+  )
   const [loading, setLoading] = useState(true)
   const [tick, setTick] = useState(0)
 
-  useEffect(() => {
-    loadActive()
-  }, [tick])
+  useEffect(() => { loadEvents() }, [tick])
 
-  async function loadActive() {
+  async function loadEvents() {
     setLoading(true)
-    const { data: ev } = await supabase
+    const { data: evs } = await supabase
       .from('events')
       .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+      .order('start_date')
 
-    if (ev) {
-      setActiveEvent(ev)
+    const list = evs ?? []
+    setEvents(list)
+
+    // Load days for all events
+    if (list.length > 0) {
       const { data: days } = await supabase
         .from('event_days')
         .select('*')
-        .eq('event_id', ev.id)
+        .in('event_id', list.map(e => e.id))
         .order('day_order')
       setEventDays(days ?? [])
     } else {
-      setActiveEvent(null)
       setEventDays([])
     }
+
+    // Auto-select first active event if stored one is gone
+    if (list.length > 0) {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      const stillExists = stored && list.some(e => e.id === stored)
+      if (!stillExists) {
+        const first = list.find(e => e.status === 'active') ?? list[0]
+        setSelectedEventIdState(first?.id ?? null)
+        if (first) localStorage.setItem(STORAGE_KEY, first.id)
+      }
+    }
+
     setLoading(false)
   }
 
+  function setSelectedEventId(id: string | null) {
+    setSelectedEventIdState(id)
+    if (id) localStorage.setItem(STORAGE_KEY, id)
+    else localStorage.removeItem(STORAGE_KEY)
+  }
+
+  const selectedEvent = events.find(e => e.id === selectedEventId) ?? null
+
   return (
-    <EventContext.Provider value={{ activeEvent, eventDays, loading, reload: () => setTick(t => t + 1) }}>
+    <EventContext.Provider value={{
+      events,
+      selectedEvent,
+      selectedEventId,
+      setSelectedEventId,
+      eventDays: selectedEvent ? eventDays.filter(d => d.event_id === selectedEvent.id) : [],
+      loading,
+      reload: () => setTick(t => t + 1),
+    }}>
       {children}
     </EventContext.Provider>
   )

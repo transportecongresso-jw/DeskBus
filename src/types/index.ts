@@ -1,13 +1,23 @@
 export type UserRole = 'admin_general' | 'admin_congregation'
 
+export type EventStatus = 'active' | 'closed' | 'cancelled'
+
 export interface Event {
   id: string
   name: string
   start_date: string
   end_date: string
-  is_active: boolean
+  status: EventStatus
+  notes: string | null
   created_at: string
   created_by: string | null
+}
+
+export interface EventCongregation {
+  id: string
+  event_id: string
+  congregation_id: string
+  created_at: string
 }
 
 export interface EventDay {
@@ -61,6 +71,7 @@ export type VehicleType = 'bus' | 'van'
 export interface Vehicle {
   id: string
   congregation_id: string
+  event_id: string | null
   event_day_id: string | null
   type: VehicleType
   capacity: number
@@ -88,6 +99,7 @@ export type DocumentType = 'cpf' | 'rg' | 'birth_certificate'
 export interface Passenger {
   id: string
   congregation_id: string
+  event_id: string | null
   full_name: string
   document_type: DocumentType
   document_number: string

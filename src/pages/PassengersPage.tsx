@@ -26,7 +26,7 @@ const DOC_OPTIONS = [
 
 export function PassengersPage() {
   const { isAdminGeneral, congregationIds, user } = useAuth()
-  const { activeEvent, eventDays } = useEvent()
+  const { selectedEvent, eventDays } = useEvent()
   const [passengers, setPassengers] = useState<(Passenger & { guardian?: Passenger; congregation?: Congregation; dayIds?: string[] })[]>([])
   const [congregations, setCongregations] = useState<Congregation[]>([])
   const [loading, setLoading] = useState(true)
@@ -38,7 +38,7 @@ export function PassengersPage() {
   const [filterDay, setFilterDay] = useState('all')
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [selectedEvent])
 
   async function loadData() {
     setLoading(true)
@@ -50,6 +50,7 @@ export function PassengersPage() {
     const congIds = (congs ?? []).map(c => c.id)
     let pQuery = supabase.from('passengers').select('*, guardian:guardian_id(*)').order('full_name')
     if (congIds.length > 0) pQuery = pQuery.in('congregation_id', congIds)
+    if (selectedEvent) pQuery = pQuery.eq('event_id', selectedEvent.id)
     const { data } = await pQuery
 
     const pIds = (data ?? []).map((p: any) => p.id)
@@ -110,7 +111,7 @@ export function PassengersPage() {
       />
 
       {/* Day filter tabs */}
-      {activeEvent && eventDays.length > 0 && (
+      {selectedEvent && eventDays.length > 0 && (
         <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
           <button onClick={() => setFilterDay('all')}
             className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${filterDay === 'all' ? 'bg-amber-400 text-amber-950' : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700'}`}>
@@ -174,7 +175,7 @@ export function PassengersPage() {
                     <p className="text-xs text-stone-400">
                       {formatDocumentType(p.document_type)} · {p.document_number}
                     </p>
-                    {activeEvent && (p.dayIds ?? []).length > 0 && (
+                    {selectedEvent && (p.dayIds ?? []).length > 0 && (
                       <div className="flex gap-1 flex-wrap mt-1">
                         {eventDays.filter(d => (p.dayIds ?? []).includes(d.id)).map(d => (
                           <span key={d.id} className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full">
@@ -279,15 +280,19 @@ interface PassengerFormProps {
 
 function PassengerForm({ open, onClose, editing, congregations, passengers, onSaved }: PassengerFormProps) {
   const { isAdminGeneral, congregationIds, user } = useAuth()
-  const { activeEvent, eventDays } = useEvent()
+  const { events, selectedEvent, eventDays } = useEvent()
   const [fullName, setFullName] = useState('')
   const [docType, setDocType] = useState<DocumentType>('cpf')
   const [docNumber, setDocNumber] = useState('')
   const [isMinor, setIsMinor] = useState(false)
   const [guardianId, setGuardianId] = useState('')
   const [congregationId, setCongregationId] = useState('')
+  const [eventId, setEventId] = useState<string>('')
   const [selectedDays, setSelectedDays] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+
+  const selectedEvents = events.filter(e => e.status === 'active')
+  const daysForEvent = eventDays.filter(d => d.event_id === eventId)
 
   useEffect(() => {
     setFullName(editing?.full_name ?? '')
@@ -296,7 +301,7 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
     setIsMinor(editing?.is_minor ?? false)
     setGuardianId(editing?.guardian_id ?? '')
     setCongregationId(editing?.congregation_id ?? (isAdminGeneral ? '' : congregationIds[0] ?? ''))
-    // Load existing day selections for the passenger
+    setEventId(editing?.event_id ?? selectedEvent?.id ?? '')
     if (editing) {
       supabase.from('passenger_event_days').select('event_day_id')
         .eq('passenger_id', editing.id)
@@ -316,6 +321,7 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
     e.preventDefault()
     setLoading(true)
     try {
+      if (!eventId) { toast.error('Selecione o evento'); setLoading(false); return }
       const payload = {
         full_name: fullName,
         document_type: docType,
@@ -323,6 +329,7 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
         is_minor: isMinor,
         guardian_id: isMinor && guardianId ? guardianId : null,
         congregation_id: congregationId,
+        event_id: eventId,
       }
 
       let passengerId: string
@@ -341,9 +348,9 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
       }
 
       // Sync event day participation
-      if (activeEvent && eventDays.length > 0) {
+      if (daysForEvent.length > 0) {
         await supabase.from('passenger_event_days').delete().eq('passenger_id', passengerId)
-          .in('event_day_id', eventDays.map(d => d.id))
+          .in('event_day_id', daysForEvent.map(d => d.id))
         if (selectedDays.length > 0) {
           await supabase.from('passenger_event_days').insert(
             selectedDays.map(dayId => ({ passenger_id: passengerId, event_day_id: dayId }))
@@ -431,13 +438,24 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
           </div>
         )}
 
-        {activeEvent && eventDays.length > 0 && (
+        <Select
+          label="Evento *"
+          value={eventId}
+          onChange={e => { setEventId(e.target.value); setSelectedDays([]) }}
+          options={[
+            { value: '', label: 'Selecione o evento...' },
+            ...selectedEvents.map(e => ({ value: e.id, label: e.name })),
+          ]}
+          required
+        />
+
+        {eventId && daysForEvent.length > 0 && (
           <div className="p-3 bg-stone-50 dark:bg-stone-800 rounded-xl">
             <p className="text-xs font-medium text-stone-600 dark:text-stone-400 mb-2 flex items-center gap-1.5">
-              <CalendarDays className="w-3.5 h-3.5" />Dias que vai participar — {activeEvent.name}
+              <CalendarDays className="w-3.5 h-3.5" />Dias que vai participar
             </p>
             <div className="flex flex-col gap-2">
-              {eventDays.map(d => (
+              {daysForEvent.map(d => (
                 <label key={d.id} className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={selectedDays.includes(d.id)} onChange={() => toggleDay(d.id)}
                     className="w-4 h-4 accent-amber-400" />

@@ -30,7 +30,7 @@ const CAPACITY_OPTIONS = {
 
 export function VehiclesPage() {
   const { isAdminGeneral, congregationIds } = useAuth()
-  const { activeEvent, eventDays } = useEvent()
+  const { selectedEvent, eventDays } = useEvent()
   const navigate = useNavigate()
   const [vehicles, setVehicles] = useState<VehicleWithStats[]>([])
   const [congregations, setCongregations] = useState<Congregation[]>([])
@@ -40,7 +40,7 @@ export function VehiclesPage() {
   const [deleting, setDeleting] = useState<Vehicle | null>(null)
   const [selectedDayId, setSelectedDayId] = useState<string>('all')
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [selectedEvent])
 
   async function loadData() {
     setLoading(true)
@@ -53,14 +53,13 @@ export function VehiclesPage() {
 
     let vQuery = supabase.from('vehicles').select('*').order('name')
     if (congIds.length > 0) vQuery = vQuery.in('congregation_id', congIds)
+    if (selectedEvent) vQuery = vQuery.eq('event_id', selectedEvent.id)
     const { data: vData } = await vQuery
     if (!vData) { setLoading(false); return }
 
-    const { data: assignments } = await supabase
-      .from('seat_assignments')
-      .select('vehicle_id')
-      .eq('status', 'active')
-      .in('vehicle_id', vData.map(v => v.id))
+    const { data: assignments } = vData.length > 0
+      ? await supabase.from('seat_assignments').select('vehicle_id').eq('status', 'active').in('vehicle_id', vData.map(v => v.id))
+      : { data: [] }
 
     const withStats: VehicleWithStats[] = vData.map(v => ({
       ...v,
@@ -94,7 +93,7 @@ export function VehiclesPage() {
     <div className="animate-fade-in">
       <PageHeader
         title="Veículos"
-        subtitle={activeEvent ? `${activeEvent.name}` : 'Gerencie os veículos e sua ocupação'}
+        subtitle={selectedEvent ? `${selectedEvent.name}` : 'Gerencie os veículos e sua ocupação'}
         icon={<Bus className="w-6 h-6" />}
         actions={
           <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowForm(true) }}>
@@ -104,7 +103,7 @@ export function VehiclesPage() {
       />
 
       {/* Day tabs when there's an active event */}
-      {activeEvent && eventDays.length > 0 && (
+      {selectedEvent && eventDays.length > 0 && (
         <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
           <button
             onClick={() => setSelectedDayId('all')}
@@ -263,14 +262,18 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
   congregations: Congregation[]; onSaved: () => void
 }) {
   const { isAdminGeneral, congregationIds } = useAuth()
-  const { activeEvent, eventDays } = useEvent()
+  const { events, selectedEvent, eventDays } = useEvent()
   const [type, setType] = useState<VehicleType>('bus')
   const [capacity, setCapacity] = useState(46)
   const [name, setName] = useState('')
   const [congregationId, setCongregationId] = useState('')
   const [ticketPrice, setTicketPrice] = useState(0)
+  const [eventId, setEventId] = useState<string>('')
   const [eventDayId, setEventDayId] = useState<string>('')
   const [loading, setLoading] = useState(false)
+
+  const selectedEvents = events.filter(e => e.status === 'active')
+  const daysForEvent = eventDays.filter(d => d.event_id === eventId)
 
   useEffect(() => {
     if (editing) {
@@ -279,6 +282,7 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
       setName(editing.name)
       setCongregationId(editing.congregation_id)
       setTicketPrice(editing.ticket_price)
+      setEventId(editing.event_id ?? selectedEvent?.id ?? '')
       setEventDayId(editing.event_day_id ?? '')
     } else {
       setType('bus')
@@ -286,6 +290,7 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
       setName('')
       setCongregationId(isAdminGeneral ? '' : congregationIds[0] ?? '')
       setTicketPrice(0)
+      setEventId(selectedEvent?.id ?? '')
       setEventDayId('')
     }
   }, [editing, open])
@@ -294,9 +299,11 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
     e.preventDefault()
     setLoading(true)
     try {
+      if (!eventId) { toast.error('Selecione o evento'); setLoading(false); return }
       const payload: any = {
         type, capacity, name, congregation_id: congregationId,
         ticket_price: ticketPrice,
+        event_id: eventId,
         event_day_id: eventDayId || null,
       }
       if (editing) {
@@ -341,14 +348,25 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
           />
         )}
 
-        {activeEvent && eventDays.length > 0 && (
+        <Select
+          label="Evento *"
+          value={eventId}
+          onChange={e => { setEventId(e.target.value); setEventDayId('') }}
+          options={[
+            { value: '', label: 'Selecione o evento...' },
+            ...selectedEvents.map(e => ({ value: e.id, label: e.name })),
+          ]}
+          required
+        />
+
+        {eventId && daysForEvent.length > 0 && (
           <Select
-            label={`Dia do Evento — ${activeEvent.name}`}
+            label="Dia do Evento"
             value={eventDayId}
             onChange={e => setEventDayId(e.target.value)}
             options={[
               { value: '', label: 'Sem dia específico' },
-              ...eventDays.map(d => ({ value: d.id, label: d.label })),
+              ...daysForEvent.map(d => ({ value: d.id, label: d.label })),
             ]}
           />
         )}
