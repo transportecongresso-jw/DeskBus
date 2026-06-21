@@ -11,9 +11,9 @@ export function BottomNav() {
 
   const items = isAdminGeneral ? [
     { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },
-    { to: '/events', icon: <CalendarDays className="w-5 h-5" />, label: 'Eventos' },
     { to: '/congregations', icon: <Building2 className="w-5 h-5" />, label: 'Congr.' },
-    { to: '/users', icon: <UserCog className="w-5 h-5" />, label: 'Usuários' },
+    { to: '/vehicles', icon: <Bus className="w-5 h-5" />, label: 'Veículos' },
+    { to: '/boarding', icon: <ClipboardList className="w-5 h-5" />, label: 'Embarque' },
     { to: '/audit', icon: <Shield className="w-5 h-5" />, label: 'Auditoria' },
   ] : [
     { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },

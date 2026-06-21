@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind v4: usar classe .dark em vez de media query do sistema */
+@custom-variant dark (&:is(.dark *));
+
 @theme {
   --color-primary-50: #fffbf0;
   --color-primary-100: #fef3d0;
