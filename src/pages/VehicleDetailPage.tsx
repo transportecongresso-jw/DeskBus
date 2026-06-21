@@ -579,7 +579,9 @@ function SeatModal({ open, seat, passengers, onClose, onAssign, onRemove, onSubs
   const [search, setSearch] = useState('')
   const occupied = !!seat.assignment
 
-  const filtered = passengers.filter(p =>
+  // Lap children cannot occupy seats
+  const eligible = passengers.filter(p => p.passenger_type !== 'lap_child')
+  const filtered = eligible.filter(p =>
     p.full_name.toLowerCase().includes(search.toLowerCase()) ||
     p.document_number.includes(search)
   )
@@ -706,7 +708,8 @@ function SubstitutionModal({ open, seat, passengers, onClose, onSubstitute }: {
   const [selected, setSelected] = useState('')
   const [search, setSearch] = useState('')
 
-  const filtered = passengers.filter(p =>
+  const eligible = passengers.filter(p => p.passenger_type !== 'lap_child')
+  const filtered = eligible.filter(p =>
     p.full_name.toLowerCase().includes(search.toLowerCase()) ||
     p.document_number.includes(search)
   )

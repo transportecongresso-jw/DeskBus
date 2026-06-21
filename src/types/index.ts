@@ -98,6 +98,7 @@ export interface Seat {
 }
 
 export type DocumentType = 'cpf' | 'rg' | 'birth_certificate'
+export type PassengerType = 'normal' | 'lap_child'
 
 export interface Passenger {
   id: string
@@ -106,6 +107,8 @@ export interface Passenger {
   full_name: string
   document_type: DocumentType
   document_number: string
+  birth_date: string | null
+  passenger_type: PassengerType
   is_minor: boolean
   guardian_id: string | null
   created_at: string

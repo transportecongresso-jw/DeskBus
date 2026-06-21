@@ -13,13 +13,13 @@ export function BottomNav() {
     { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },
     { to: '/congregations', icon: <Building2 className="w-5 h-5" />, label: 'Congr.' },
     { to: '/vehicles', icon: <Bus className="w-5 h-5" />, label: 'Veículos' },
-    { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Vagas' },
-    { to: '/audit', icon: <Shield className="w-5 h-5" />, label: 'Auditoria' },
+    { to: '/boarding', icon: <ClipboardList className="w-5 h-5" />, label: 'Embarque' },
+    { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Config.' },
   ] : [
     { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },
     { to: '/vehicles', icon: <Bus className="w-5 h-5" />, label: 'Veículos' },
     { to: '/passengers', icon: <Users className="w-5 h-5" />, label: 'Passag.' },
-    { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Vagas' },
+    { to: '/boarding', icon: <ClipboardList className="w-5 h-5" />, label: 'Embarque' },
     { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Config.' },
   ]
 

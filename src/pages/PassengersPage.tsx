@@ -176,7 +176,10 @@ export function PassengersPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium text-stone-700 dark:text-stone-200 text-sm">{p.full_name}</p>
-                      {p.is_minor && <Badge variant="warning" dot><Baby className="w-3 h-3" /> Menor</Badge>}
+                      {p.passenger_type === 'lap_child'
+                        ? <Badge variant="info" dot>🍼 Colo</Badge>
+                        : p.is_minor && <Badge variant="warning" dot><Baby className="w-3 h-3" /> Menor</Badge>
+                      }
                       {isAdminGeneral && p.congregation && (
                         <Badge variant="neutral">{p.congregation.name}</Badge>
                       )}
@@ -221,6 +224,24 @@ export function PassengersPage() {
                   <div className="mt-3 ml-12 p-3 bg-stone-50 dark:bg-stone-700/50 rounded-xl text-sm animate-fade-in">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
+                        <p className="text-xs text-stone-400">Tipo</p>
+                        <p className="text-stone-700 dark:text-stone-200">
+                          {p.passenger_type === 'lap_child' ? '🍼 Criança de Colo' : 'Passageiro'}
+                        </p>
+                      </div>
+                      {p.passenger_type !== 'lap_child' && (
+                        <div>
+                          <p className="text-xs text-stone-400">Assento</p>
+                          <p className="text-stone-700 dark:text-stone-200">Reserva normal</p>
+                        </div>
+                      )}
+                      {p.passenger_type === 'lap_child' && (
+                        <div>
+                          <p className="text-xs text-stone-400">Assento</p>
+                          <p className="text-blue-600 dark:text-blue-400 font-medium">Não ocupa</p>
+                        </div>
+                      )}
+                      <div>
                         <p className="text-xs text-stone-400">Tipo de Documento</p>
                         <p className="text-stone-700 dark:text-stone-200">{formatDocumentType(p.document_type)}</p>
                       </div>
@@ -228,10 +249,18 @@ export function PassengersPage() {
                         <p className="text-xs text-stone-400">Número</p>
                         <p className="text-stone-700 dark:text-stone-200">{p.document_number}</p>
                       </div>
-                      {p.is_minor && p.guardian && (
+                      {p.birth_date && (
+                        <div className="col-span-2">
+                          <p className="text-xs text-stone-400">Data de Nascimento</p>
+                          <p className="text-stone-700 dark:text-stone-200">{new Date(p.birth_date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                        </div>
+                      )}
+                      {(p.is_minor || p.passenger_type === 'lap_child') && p.guardian && (
                         <>
                           <div className="col-span-2 mt-1 pt-2 border-t border-stone-200 dark:border-stone-600">
-                            <p className="text-xs text-amber-600 font-medium mb-1">Responsável</p>
+                            <p className="text-xs text-amber-600 font-medium mb-1">
+                              {p.passenger_type === 'lap_child' ? 'Responsável (viaja no colo)' : 'Responsável'}
+                            </p>
                           </div>
                           <div>
                             <p className="text-xs text-stone-400">Nome</p>
@@ -280,6 +309,16 @@ export function PassengersPage() {
   )
 }
 
+// --- helpers ---
+function calcAge(birthDate: string): number {
+  const today = new Date()
+  const bd = new Date(birthDate)
+  let age = today.getFullYear() - bd.getFullYear()
+  const m = today.getMonth() - bd.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--
+  return age
+}
+
 // --- PassengerForm ---
 interface PassengerFormProps {
   open: boolean; onClose: () => void; editing: Passenger | null
@@ -293,6 +332,7 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
   const [fullName, setFullName] = useState('')
   const [docType, setDocType] = useState<DocumentType>('cpf')
   const [docNumber, setDocNumber] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [isMinor, setIsMinor] = useState(false)
   const [guardianId, setGuardianId] = useState('')
   const [congregationId, setCongregationId] = useState('')
@@ -303,10 +343,15 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
   const selectedEvents = events.filter(e => e.status === 'active')
   const daysForEvent = eventDays.filter(d => d.event_id === eventId)
 
+  // Detect lap child automatically from birth date
+  const isLapChild = birthDate ? calcAge(birthDate) < 5 : (editing?.passenger_type === 'lap_child')
+  const passengerType = isLapChild ? 'lap_child' : 'normal'
+
   useEffect(() => {
     setFullName(editing?.full_name ?? '')
     setDocType(editing?.document_type ?? 'cpf')
     setDocNumber(editing?.document_number ?? '')
+    setBirthDate(editing?.birth_date ?? '')
     setIsMinor(editing?.is_minor ?? false)
     setGuardianId(editing?.guardian_id ?? '')
     setCongregationId(editing?.congregation_id ?? (isAdminGeneral ? '' : congregationIds[0] ?? ''))
@@ -324,19 +369,28 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
     setSelectedDays(prev => prev.includes(dayId) ? prev.filter(d => d !== dayId) : [...prev, dayId])
   }
 
-  const adultPassengers = passengers.filter(p => !p.is_minor && p.id !== editing?.id)
+  // For lap child: all non-lap-child passengers in same congregation; for minor: only adults
+  const eligibleGuardians = passengers.filter(p =>
+    p.id !== editing?.id &&
+    p.passenger_type !== 'lap_child' &&
+    (isLapChild ? true : !p.is_minor)
+  )
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     try {
       if (!eventId) { toast.error('Selecione o evento'); setLoading(false); return }
+      if (isLapChild && !guardianId) { toast.error('Criança de colo precisa de um responsável'); setLoading(false); return }
+
       const payload = {
         full_name: fullName,
         document_type: docType,
         document_number: docNumber,
-        is_minor: isMinor,
-        guardian_id: isMinor && guardianId ? guardianId : null,
+        birth_date: birthDate || null,
+        passenger_type: passengerType,
+        is_minor: isLapChild ? true : isMinor,
+        guardian_id: (isLapChild || isMinor) && guardianId ? guardianId : null,
         congregation_id: congregationId,
         event_id: eventId,
       }
@@ -352,11 +406,14 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
         const { data: newP, error } = await supabase.from('passengers').insert(payload).select().single()
         if (error) throw error
         passengerId = newP.id
-        await logAction({ congregationId, actionType: 'passenger_created', description: `Passageiro "${fullName}" cadastrado`, performedBy: user!.id })
-        toast.success('Passageiro cadastrado')
+        const desc = isLapChild
+          ? `Criança de colo "${fullName}" cadastrada`
+          : `Passageiro "${fullName}" cadastrado`
+        await logAction({ congregationId, actionType: 'passenger_created', description: desc, performedBy: user!.id })
+        toast.success(isLapChild ? 'Criança de colo cadastrada' : 'Passageiro cadastrado')
       }
 
-      // Sync event day participation
+      // Sync event day participation (lap children follow guardian, still record days)
       if (daysForEvent.length > 0) {
         await supabase.from('passenger_event_days').delete().eq('passenger_id', passengerId)
           .in('event_day_id', daysForEvent.map(d => d.id))
@@ -406,6 +463,25 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
           required
         />
 
+        {/* Birth date — auto-detects lap child */}
+        <Input
+          label="Data de Nascimento (opcional)"
+          type="date"
+          value={birthDate}
+          onChange={e => setBirthDate(e.target.value)}
+          hint={isLapChild ? '🍼 Criança de colo detectada (menos de 5 anos) — não ocupa assento' : undefined}
+        />
+
+        {/* Lap child banner */}
+        {isLapChild && (
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-700 animate-fade-in">
+            <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">🍼 Criança de Colo</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
+              Não ocupa assento · Não gera excedente · Passagem gratuita · Aparece em todos os relatórios
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <Select
             label="Tipo de Documento"
@@ -423,32 +499,36 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
           />
         </div>
 
-        <div className="flex items-center gap-3 p-3 bg-stone-50 dark:bg-stone-700/50 rounded-xl">
-          <input
-            type="checkbox"
-            id="is-minor"
-            checked={isMinor}
-            onChange={e => setIsMinor(e.target.checked)}
-            className="w-4 h-4 accent-amber-400"
-          />
-          <label htmlFor="is-minor" className="text-sm font-medium text-stone-700 dark:text-stone-200 cursor-pointer flex-1">
-            Menor de idade
-          </label>
-          <HelpIcon content="Marque esta opção caso o passageiro seja menor de 18 anos. Será obrigatório informar um responsável adulto." />
-        </div>
+        {!isLapChild && (
+          <div className="flex items-center gap-3 p-3 bg-stone-50 dark:bg-stone-700/50 rounded-xl">
+            <input
+              type="checkbox"
+              id="is-minor"
+              checked={isMinor}
+              onChange={e => setIsMinor(e.target.checked)}
+              className="w-4 h-4 accent-amber-400"
+            />
+            <label htmlFor="is-minor" className="text-sm font-medium text-stone-700 dark:text-stone-200 cursor-pointer flex-1">
+              Menor de idade (5–17 anos)
+            </label>
+            <HelpIcon content="Marque esta opção caso o passageiro seja menor de 18 anos. Será obrigatório informar um responsável adulto." />
+          </div>
+        )}
 
-        {isMinor && (
+        {(isLapChild || isMinor) && (
           <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl flex flex-col gap-3 animate-fade-in">
-            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Dados do Responsável</p>
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+              {isLapChild ? 'Responsável pela criança de colo *' : 'Dados do Responsável'}
+            </p>
             <Select
               label="Responsável"
               value={guardianId}
               onChange={e => setGuardianId(e.target.value)}
-              options={adultPassengers.map(p => ({ value: p.id, label: p.full_name }))}
+              options={eligibleGuardians.map(p => ({ value: p.id, label: p.full_name }))}
               placeholder="Selecione o responsável..."
-              hint="Selecione um passageiro adulto já cadastrado como responsável"
+              hint={isLapChild ? 'A criança viajará no colo deste passageiro' : 'Passageiro adulto já cadastrado'}
             />
-            {adultPassengers.length === 0 && (
+            {eligibleGuardians.length === 0 && (
               <p className="text-xs text-amber-600">
                 ⚠️ Nenhum passageiro adulto cadastrado ainda. Cadastre o responsável primeiro.
               </p>

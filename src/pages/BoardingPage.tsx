@@ -24,6 +24,15 @@ interface BoardingEntry {
   paymentStatus: string
 }
 
+interface LapChildEntry {
+  id: string
+  fullName: string
+  documentType: string
+  documentNumber: string
+  guardianName: string
+  guardianSeat: number
+}
+
 export function BoardingPage() {
   const { isAdminGeneral, congregationIds } = useAuth()
   const { selectedEvent, eventDays } = useEvent()
@@ -32,6 +41,7 @@ export function BoardingPage() {
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
   const [totalSeats, setTotalSeats] = useState(0)
   const [entries, setEntries] = useState<BoardingEntry[]>([])
+  const [lapChildren, setLapChildren] = useState<LapChildEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -50,6 +60,7 @@ export function BoardingPage() {
       setFilter('all')
     } else {
       setEntries([])
+      setLapChildren([])
       setTotalSeats(0)
     }
   }, [selectedVehicle])
@@ -127,6 +138,27 @@ export function BoardingPage() {
     })
 
     setEntries(deduped)
+
+    // Load lap children whose guardian is in this vehicle
+    const { data: lapData } = await supabase
+      .from('passengers')
+      .select('id, full_name, document_type, document_number, guardian_id')
+      .eq('passenger_type', 'lap_child')
+      .in('guardian_id', passengerIds)
+
+    const lapList: LapChildEntry[] = (lapData ?? []).map(child => {
+      const guardian = (passengers ?? []).find(p => p.id === child.guardian_id)
+      const guardianEntry = deduped.find(e => e.passengerId === child.guardian_id)
+      return {
+        id: child.id,
+        fullName: child.full_name,
+        documentType: child.document_type,
+        documentNumber: child.document_number,
+        guardianName: guardian?.full_name ?? '',
+        guardianSeat: guardianEntry?.seatNumber ?? 0,
+      }
+    })
+    setLapChildren(lapList)
     setLoading(false)
   }
 
@@ -410,6 +442,36 @@ export function BoardingPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Crianças de colo */}
+      {lapChildren.length > 0 && (
+        <div className="mt-2">
+          <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-2">
+            🍼 Crianças de Colo ({lapChildren.length})
+          </p>
+          <div className="space-y-2">
+            {lapChildren.filter(c =>
+              !search || c.fullName.toLowerCase().includes(search.toLowerCase()) || c.documentNumber.includes(search)
+            ).map(child => (
+              <div key={child.id} className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl border-2 border-blue-200 dark:border-blue-700 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0 text-lg">
+                    🍼
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-stone-800 dark:text-stone-100 truncate">{child.fullName}</p>
+                    <p className="text-xs text-stone-400">{formatDocumentType(child.documentType as any)} · {child.documentNumber}</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                      Responsável: {child.guardianName} (Assento {child.guardianSeat})
+                    </p>
+                  </div>
+                  <Badge variant="info">Colo</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
