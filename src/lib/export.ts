@@ -239,14 +239,14 @@ export async function exportCongregationToPDF(
       bodyStyles: { fontSize: 7 },
       alternateRowStyles: { fillColor: [255, 251, 235] },
       columnStyles: {
-        0: { cellWidth: 6 },
-        1: { cellWidth: 42 },
-        2: { cellWidth: 34 },
-        3: { cellWidth: 10 },
-        4: { cellWidth: 34 },
-        5: { cellWidth: 26 },
-        6: { cellWidth: 12 },
-        7: { cellWidth: 14 },
+        0: { cellWidth: 6 },   // #
+        1: { cellWidth: 44 },  // Nome
+        2: { cellWidth: 34 },  // Documento
+        3: { cellWidth: 13 },  // Menor
+        4: { cellWidth: 30 },  // Responsável
+        5: { cellWidth: 24 },  // Veículo
+        6: { cellWidth: 14 },  // Assento
+        7: { cellWidth: 17 },  // Pagto
       },
       didDrawPage: (data) => {
         finalY = data.cursor?.y ?? finalY
