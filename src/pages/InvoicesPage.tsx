@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Receipt, Upload, Check, Eye, Filter, Plus, X, DollarSign, FileText } from 'lucide-react'
+import { Receipt, Upload, Check, Eye, Filter, Plus, X, DollarSign, FileText, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useEvent } from '../contexts/EventContext'
@@ -174,10 +174,24 @@ export function InvoicesPage() {
 
                   <div className="flex gap-2 pt-3 border-t border-stone-100 dark:border-stone-700 flex-wrap">
                     {inv.file_url && (
-                      <Button variant="ghost" size="sm" icon={<Eye className="w-4 h-4" />}
-                        onClick={() => setPreviewUrl(inv.file_url)}>
-                        Ver Nota
-                      </Button>
+                      <>
+                        <Button variant="ghost" size="sm" icon={<Eye className="w-4 h-4" />}
+                          onClick={() => setPreviewUrl(inv.file_url)}>
+                          Ver Nota
+                        </Button>
+                        {isAdminGeneral && (
+                          <a
+                            href={inv.file_url}
+                            download={inv.file_name ?? 'nota-fiscal'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button variant="ghost" size="sm" icon={<Download className="w-4 h-4" />}>
+                              Baixar
+                            </Button>
+                          </a>
+                        )}
+                      </>
                     )}
                     {isAdminGeneral && inv.status === 'sent' && (
                       <Button variant="ghost" size="sm" icon={<Check className="w-4 h-4" />}
