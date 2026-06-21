@@ -136,26 +136,27 @@ export function AuditPage() {
           <div className="flex flex-col divide-y divide-stone-100 dark:divide-stone-700">
             {filtered.map(log => {
               const meta = ACTION_LABELS[log.action_type]
+              const date = new Date(log.created_at)
+              const timeStr = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+              const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
               return (
-                <div key={log.id} className="py-3 flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-0.5">
+                <div key={log.id} className="py-4">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
                     <Badge variant={meta?.variant ?? 'neutral'}>
                       {meta?.label ?? log.action_type}
                     </Badge>
+                    <span className="text-xs text-stone-400 flex-shrink-0">{dateStr} {timeStr}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-stone-700 dark:text-stone-200">{log.description}</p>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="text-xs text-stone-400">{log.performer_name}</span>
-                      {isAdminGeneral && log.congregation_name && (
-                        <span className="text-xs text-stone-300 dark:text-stone-500">· {log.congregation_name}</span>
-                      )}
-                      {log.vehicle_name && (
-                        <span className="text-xs text-stone-300 dark:text-stone-500">· {log.vehicle_name}</span>
-                      )}
-                    </div>
+                  <p className="text-sm text-stone-700 dark:text-stone-200 leading-snug">{log.description}</p>
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    <span className="text-xs font-medium text-stone-500">{log.performer_name}</span>
+                    {isAdminGeneral && log.congregation_name && (
+                      <span className="text-xs text-stone-400 bg-stone-100 dark:bg-stone-700 px-1.5 py-0.5 rounded-md">{log.congregation_name}</span>
+                    )}
+                    {log.vehicle_name && (
+                      <span className="text-xs text-stone-400 bg-stone-100 dark:bg-stone-700 px-1.5 py-0.5 rounded-md">{log.vehicle_name}</span>
+                    )}
                   </div>
-                  <span className="text-xs text-stone-400 flex-shrink-0 whitespace-nowrap">{formatDate(log.created_at)}</span>
                 </div>
               )
             })}

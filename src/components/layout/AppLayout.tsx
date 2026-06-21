@@ -12,7 +12,7 @@ export function AppLayout() {
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto">
-        <div className="p-4 sm:p-6 max-w-7xl mx-auto pb-20 lg:pb-6">
+        <div className="p-4 sm:p-6 max-w-7xl mx-auto pb-28 lg:pb-8">
           <Outlet />
         </div>
       </main>

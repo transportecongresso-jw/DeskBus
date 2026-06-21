@@ -24,20 +24,21 @@ export function BottomNav() {
   ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 flex items-stretch safe-bottom lg:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-800 flex items-stretch lg:hidden"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {items.map(item => (
         <NavLink
           key={item.to}
           to={item.to}
           className={({ isActive }) => cn(
-            'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-colors min-w-0',
+            'flex-1 flex flex-col items-center justify-center py-3 gap-1 text-[11px] font-medium transition-colors min-w-0 min-h-[60px]',
             isActive
               ? 'text-amber-500'
-              : 'text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300'
+              : 'text-stone-400 dark:text-stone-500'
           )}
         >
           {item.icon}
-          <span className="truncate w-full text-center px-0.5">{item.label}</span>
+          <span className="truncate w-full text-center px-0.5 leading-tight">{item.label}</span>
         </NavLink>
       ))}
     </nav>
