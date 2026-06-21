@@ -79,6 +79,7 @@ export interface Vehicle {
   ticket_price: number
   export_count: number
   exported_at: string | null
+  post_close_changes: number | null
   created_at: string
   congregation?: Congregation
   event_day?: EventDay

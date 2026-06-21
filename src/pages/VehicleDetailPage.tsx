@@ -34,10 +34,9 @@ export function VehicleDetailPage() {
   const [selectedSeat, setSelectedSeat] = useState<SeatWithAssignment | null>(null)
   const [showSeatModal, setShowSeatModal] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
-  const [exportConfirm, setExportConfirm] = useState<'excel' | 'pdf' | null>(null)
-  const [changeWarning, setChangeWarning] = useState(false)
-  const [pendingChange, setPendingChange] = useState<(() => Promise<void>) | null>(null)
   const [substitutingFor, setSubstitutingFor] = useState<SeatWithAssignment | null>(null)
+  const [postCloseWarning, setPostCloseWarning] = useState(false)
+  const [pendingChange, setPendingChange] = useState<(() => Promise<void>) | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [showCancelModal, setShowCancelModal] = useState(false)
 
@@ -88,13 +87,13 @@ export function VehicleDetailPage() {
   }
 
   async function executeChange(action: () => Promise<void>) {
-    if (vehicle?.exported_at && vehicle.export_count >= 3) {
+    const isClosed = congregation?.list_status === 'finalized'
+    if (isClosed && (vehicle?.post_close_changes ?? 0) >= 3) {
+      // 4th+ change after closing: require explicit confirmation
       setPendingChange(() => action)
-      setChangeWarning(true)
-    } else if (vehicle?.exported_at) {
-      toast('⚠️ Atenção: lista já foi exportada. Alterações podem causar divergência.', { duration: 4000 })
-      await action()
+      setPostCloseWarning(true)
     } else {
+      // Lista aberta, exportada ou fechada com < 3 alterações: permite direto
       await action()
     }
   }
@@ -219,9 +218,10 @@ export function VehicleDetailPage() {
       description,
       performedBy: user.id,
     })
-    if (vehicle.exported_at) {
+    // Incrementar contador apenas quando lista estiver fechada
+    if (congregation?.list_status === 'finalized') {
       await supabase.from('vehicles')
-        .update({ export_count: (vehicle.export_count ?? 0) + 1 })
+        .update({ post_close_changes: (vehicle.post_close_changes ?? 0) + 1 })
         .eq('id', vehicle.id)
     }
   }
@@ -235,8 +235,8 @@ export function VehicleDetailPage() {
       } else {
         await exportToPDF(vehicle, seats)
       }
-      // Mark as exported
-      await supabase.from('vehicles').update({ exported_at: new Date().toISOString(), export_count: 0 }).eq('id', vehicle.id)
+      // Registrar exportação (sem bloquear nem zerar contadores)
+      await supabase.from('vehicles').update({ exported_at: new Date().toISOString() }).eq('id', vehicle.id)
       await supabase.from('export_records').insert({
         vehicle_id: vehicle.id,
         congregation_id: vehicle.congregation_id,
@@ -249,7 +249,6 @@ export function VehicleDetailPage() {
       toast.error('Erro ao exportar lista')
       console.error(err)
     }
-    setExportConfirm(null)
     setShowExportMenu(false)
   }
 
@@ -277,8 +276,11 @@ export function VehicleDetailPage() {
         <h1 className="text-xl font-bold text-stone-800 dark:text-stone-100">{vehicle.name}</h1>
         <Badge variant="info">{vehicle.type === 'bus' ? 'Ônibus' : 'Van'} · {vehicle.capacity} lugares</Badge>
         {vehicle.exported_at && (
+          <Badge variant="info" dot>Lista exportada</Badge>
+        )}
+        {congregation?.list_status === 'finalized' && (vehicle.post_close_changes ?? 0) > 0 && (
           <Badge variant="warning" dot>
-            Lista exportada · {vehicle.export_count} alteraç{vehicle.export_count === 1 ? 'ão' : 'ões'}
+            {vehicle.post_close_changes} alteraç{vehicle.post_close_changes === 1 ? 'ão' : 'ões'} após fechamento
           </Badge>
         )}
       </div>
@@ -288,9 +290,9 @@ export function VehicleDetailPage() {
         <div className="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-2xl flex items-start gap-3">
           <Lock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Lista Finalizada — Atenção</p>
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Lista Fechada</p>
             <p className="text-xs text-amber-600/80 mt-0.5">
-              A lista desta congregação já foi finalizada. Alterações ainda são permitidas, mas ficam registradas na auditoria.
+              Esta lista já foi finalizada e enviada para a transportadora. Alterações são permitidas, mas ficam registradas na auditoria e podem causar divergência.
             </p>
           </div>
         </div>
@@ -327,14 +329,14 @@ export function VehicleDetailPage() {
                 {showExportMenu && (
                   <div className="absolute right-0 top-10 bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-stone-100 dark:border-stone-700 py-2 z-20 min-w-48 animate-fade-in">
                     <button
-                      onClick={() => setExportConfirm('excel')}
+                      onClick={() => handleExport('excel')}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
                     >
                       <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
                       Exportar Excel
                     </button>
                     <button
-                      onClick={() => setExportConfirm('pdf')}
+                      onClick={() => handleExport('pdf')}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
                     >
                       <FileText className="w-4 h-4 text-rose-500" />
@@ -456,30 +458,19 @@ export function VehicleDetailPage() {
         />
       )}
 
-      {/* Export confirm */}
+      {/* Aviso de excesso de alterações após fechamento */}
       <ConfirmDialog
-        open={!!exportConfirm}
-        onClose={() => setExportConfirm(null)}
-        onConfirm={() => exportConfirm && handleExport(exportConfirm)}
-        variant="warning"
-        title="Exportar Lista"
-        message="Ao exportar a lista oficial, alterações subsequentes serão rastreadas. Confirmar exportação?"
-        confirmLabel="Exportar"
-      />
-
-      {/* Change warning after export */}
-      <ConfirmDialog
-        open={changeWarning}
-        onClose={() => { setChangeWarning(false); setPendingChange(null) }}
+        open={postCloseWarning}
+        onClose={() => { setPostCloseWarning(false); setPendingChange(null) }}
         onConfirm={async () => {
-          setChangeWarning(false)
+          setPostCloseWarning(false)
           if (pendingChange) await pendingChange()
           setPendingChange(null)
         }}
-        variant="danger"
-        title="Limite de Alterações"
-        message={`Este veículo já possui ${vehicle.export_count} alterações após exportação. Isso pode causar divergência entre a lista enviada à empresa e a lista do motorista. Confirmar mesmo assim?`}
-        confirmLabel="Confirmar Alteração"
+        variant="warning"
+        title="Muitas Alterações Após Fechamento"
+        message={`Você já realizou ${vehicle.post_close_changes ?? 0} alterações após o fechamento da lista. Isso pode causar divergência com a lista enviada à transportadora. Deseja continuar mesmo assim?`}
+        confirmLabel="Continuar"
       />
     </div>
   )
