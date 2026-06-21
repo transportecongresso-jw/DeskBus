@@ -364,8 +364,21 @@ function InvoiceForm({ open, onClose, vehicles, congregations, companies, congre
   const congVehicles = vehicles.filter(v => !congregationId || v.congregation_id === congregationId)
 
   return (
-    <Modal open={open} onClose={onClose} title="Enviar Nota Fiscal" size="md">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Enviar Nota Fiscal"
+      size="md"
+      footer={
+        <div className="flex gap-3">
+          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button form="invoice-form" type="submit" loading={uploading} className="flex-1" icon={<Upload className="w-4 h-4" />}>
+            Enviar Nota
+          </Button>
+        </div>
+      }
+    >
+      <form id="invoice-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         {isAdminGeneral && (
           <Select label="Congregação" value={congregationId} onChange={e => { setCongregationId(e.target.value); setVehicleId('') }}
             options={availableCongreg.map(c => ({ value: c.id, label: c.name }))} placeholder="Selecione..." required />
@@ -421,12 +434,6 @@ function InvoiceForm({ open, onClose, vehicles, congregations, companies, congre
           )}
         </div>
 
-        <div className="flex gap-3 mt-2">
-          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
-          <Button type="submit" loading={uploading} className="flex-1" icon={<Upload className="w-4 h-4" />}>
-            Enviar Nota
-          </Button>
-        </div>
       </form>
     </Modal>
   )

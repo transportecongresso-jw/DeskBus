@@ -232,8 +232,19 @@ function CompanyForm({ open, onClose, editing, onSaved }: {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? 'Editar Empresa' : 'Nova Empresa de Transporte'} size="sm">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={editing ? 'Editar Empresa' : 'Nova Empresa de Transporte'}
+      size="sm"
+      footer={
+        <div className="flex gap-3">
+          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button form="company-form" type="submit" loading={loading} className="flex-1">{editing ? 'Salvar' : 'Cadastrar'}</Button>
+        </div>
+      }
+    >
+      <form id="company-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Input label="Nome da Empresa" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: ABC Turismo" required />
         <Input label="CNPJ (opcional)" value={cnpj} onChange={e => setCnpj(e.target.value)} placeholder="00.000.000/0001-00" />
         <Input label="Telefone (opcional)" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(00) 00000-0000" />
@@ -247,10 +258,6 @@ function CompanyForm({ open, onClose, editing, onSaved }: {
             placeholder="Informações adicionais sobre a empresa..."
             className="w-full px-4 py-3 rounded-xl border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
-        </div>
-        <div className="flex gap-3 mt-2">
-          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
-          <Button type="submit" loading={loading} className="flex-1">{editing ? 'Salvar' : 'Cadastrar'}</Button>
         </div>
       </form>
     </Modal>

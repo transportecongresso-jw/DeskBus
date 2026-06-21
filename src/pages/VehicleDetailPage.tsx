@@ -490,27 +490,34 @@ export function VehicleDetailPage() {
       )}
 
       {/* Cancellation / Desistência modal */}
-      <Modal open={showCancelModal} onClose={() => { setShowCancelModal(false); setCancelReason('') }} title="Registrar Desistência" size="sm">
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-stone-500">Informe o motivo da desistência (opcional):</p>
+      <Modal
+        open={showCancelModal}
+        onClose={() => { setShowCancelModal(false); setCancelReason('') }}
+        title="Registrar Desistência"
+        size="sm"
+        footer={
+          <div className="flex gap-3">
+            <Button variant="outline" className="flex-1" onClick={() => { setShowCancelModal(false); setCancelReason('') }}>Cancelar</Button>
+            <Button variant="danger" className="flex-1" onClick={() => removePassenger(cancelReason || 'Desistência')}>
+              Confirmar
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-stone-500">Motivo da desistência (opcional):</p>
           <div className="flex flex-col gap-2">
             {['Desistiu da viagem', 'Problema de saúde', 'Motivo pessoal', 'Foi em outro veículo', 'Outro'].map(opt => (
               <button
                 key={opt}
                 onClick={() => setCancelReason(opt)}
-                className={`text-left px-3 py-2.5 rounded-xl border-2 text-sm transition-all ${
+                className={`text-left px-3 py-3 rounded-xl border-2 text-sm transition-all ${
                   cancelReason === opt ? 'border-rose-400 bg-rose-50 text-rose-700 dark:bg-rose-900/20' : 'border-stone-200 dark:border-stone-600 text-stone-600 dark:text-stone-300 hover:border-stone-300'
                 }`}
               >
                 {opt}
               </button>
             ))}
-          </div>
-          <div className="flex gap-3 mt-2">
-            <Button variant="outline" className="flex-1" onClick={() => { setShowCancelModal(false); setCancelReason('') }}>Cancelar</Button>
-            <Button variant="danger" className="flex-1" onClick={() => removePassenger(cancelReason || 'Desistência')}>
-              Confirmar Desistência
-            </Button>
           </div>
         </div>
       </Modal>
@@ -577,16 +584,39 @@ function SeatModal({ open, seat, passengers, onClose, onAssign, onRemove, onSubs
     p.document_number.includes(search)
   )
 
+  const occupiedFooter = (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" icon={<RefreshCw className="w-4 h-4" />} onClick={onSubstitute} className="flex-1">
+          Substituir
+        </Button>
+        <Button variant="danger" size="sm" icon={<X className="w-4 h-4" />} onClick={onRemove} className="flex-1">
+          Desistência
+        </Button>
+      </div>
+      <Button variant="outline" size="sm" onClick={onClose} className="w-full">Fechar</Button>
+    </div>
+  )
+
+  const emptyFooter = (
+    <div className="flex gap-3">
+      <Button variant="outline" onClick={onClose} className="flex-1">Cancelar</Button>
+      <Button onClick={() => selectedPassenger && onAssign(selectedPassenger)} disabled={!selectedPassenger} className="flex-1">
+        Atribuir
+      </Button>
+    </div>
+  )
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       title={`Assento ${seat.seat_number} — ${occupied ? 'Ocupado' : 'Livre'}`}
       size="md"
+      footer={occupied ? occupiedFooter : emptyFooter}
     >
       {occupied ? (
         <div className="flex flex-col gap-4">
-          {/* Passenger info */}
           <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-full bg-amber-200 dark:bg-amber-900/40 flex items-center justify-center">
@@ -604,11 +634,10 @@ function SeatModal({ open, seat, passengers, onClose, onAssign, onRemove, onSubs
             )}
           </div>
 
-          {/* Payment */}
           <div className="flex gap-3">
             <button
               onClick={() => onUpdatePayment('paid')}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 cursor-pointer transition-all ${
+              className={`flex-1 py-3 rounded-xl text-sm font-medium border-2 cursor-pointer transition-all ${
                 seat.assignment!.payment_status === 'paid'
                   ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
                   : 'border-stone-200 text-stone-500 hover:border-emerald-300 dark:border-stone-600'
@@ -618,7 +647,7 @@ function SeatModal({ open, seat, passengers, onClose, onAssign, onRemove, onSubs
             </button>
             <button
               onClick={() => onUpdatePayment('pending')}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 cursor-pointer transition-all ${
+              className={`flex-1 py-3 rounded-xl text-sm font-medium border-2 cursor-pointer transition-all ${
                 seat.assignment!.payment_status === 'pending'
                   ? 'border-rose-400 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'
                   : 'border-stone-200 text-stone-500 hover:border-rose-300 dark:border-stone-600'
@@ -627,19 +656,11 @@ function SeatModal({ open, seat, passengers, onClose, onAssign, onRemove, onSubs
               ⏳ Pendente
             </button>
           </div>
-
-          <Button variant="outline" icon={<RefreshCw className="w-4 h-4" />} onClick={onSubstitute}>
-            Substituir Passageiro
-          </Button>
-          <Button variant="danger" icon={<X className="w-4 h-4" />} onClick={onRemove}>
-            Registrar Desistência
-          </Button>
-          <Button variant="outline" onClick={onClose}>Fechar</Button>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-stone-500 dark:text-stone-400">
-            Selecione um passageiro para atribuir ao assento {seat.seat_number}:
+            Selecione um passageiro para o assento {seat.seat_number}:
           </p>
           <input
             placeholder="Pesquisar passageiro..."
@@ -647,7 +668,7 @@ function SeatModal({ open, seat, passengers, onClose, onAssign, onRemove, onSubs
             onChange={e => setSearch(e.target.value)}
             className="w-full px-3 py-2.5 rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
-          <div className="max-h-60 overflow-y-auto flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             {filtered.length === 0 ? (
               <p className="text-sm text-stone-400 text-center py-4">Nenhum passageiro disponível</p>
             ) : (
@@ -667,12 +688,6 @@ function SeatModal({ open, seat, passengers, onClose, onAssign, onRemove, onSubs
                 </button>
               ))
             )}
-          </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={onClose} className="flex-1">Cancelar</Button>
-            <Button onClick={() => selectedPassenger && onAssign(selectedPassenger)} disabled={!selectedPassenger} className="flex-1">
-              Atribuir
-            </Button>
           </div>
         </div>
       )}
@@ -697,19 +712,32 @@ function SubstitutionModal({ open, seat, passengers, onClose, onSubstitute }: {
   )
 
   return (
-    <Modal open={open} onClose={onClose} title={`Substituir no Assento ${seat.seat_number}`} size="md">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Substituir no Assento ${seat.seat_number}`}
+      size="md"
+      footer={
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button icon={<RefreshCw className="w-4 h-4" />} onClick={() => selected && onSubstitute(selected)} disabled={!selected} className="flex-1">
+            Confirmar
+          </Button>
+        </div>
+      }
+    >
       <div className="flex flex-col gap-4">
         <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl text-sm text-amber-700 dark:text-amber-400">
           <p className="font-medium">Substituindo: {seat.assignment?.passenger?.full_name}</p>
-          <p className="text-xs mt-0.5 text-amber-600/70">Selecione o passageiro que irá ocupar este lugar</p>
+          <p className="text-xs mt-0.5 text-amber-600/70">Selecione o passageiro substituto</p>
         </div>
         <input
-          placeholder="Pesquisar passageiro substituto..."
+          placeholder="Pesquisar passageiro..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full px-3 py-2.5 rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
         />
-        <div className="max-h-60 overflow-y-auto flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           {filtered.length === 0 ? (
             <p className="text-sm text-stone-400 text-center py-4">Nenhum passageiro disponível</p>
           ) : (
@@ -729,12 +757,6 @@ function SubstitutionModal({ open, seat, passengers, onClose, onSubstitute }: {
               </button>
             ))
           )}
-        </div>
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={onClose} className="flex-1">Cancelar</Button>
-          <Button icon={<RefreshCw className="w-4 h-4" />} onClick={() => selected && onSubstitute(selected)} disabled={!selected} className="flex-1">
-            Confirmar Substituição
-          </Button>
         </div>
       </div>
     </Modal>

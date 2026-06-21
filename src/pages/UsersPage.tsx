@@ -458,8 +458,19 @@ function UserForm({ open, onClose, editing, congregations, onSaved }: {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? 'Editar Usuário' : 'Novo Usuário'} size="md">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={editing ? 'Editar Usuário' : 'Novo Usuário'}
+      size="md"
+      footer={
+        <div className="flex gap-3">
+          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button form="user-form" type="submit" loading={loading} className="flex-1">{editing ? 'Salvar' : 'Criar Usuário'}</Button>
+        </div>
+      }
+    >
+      <form id="user-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Input label="Nome Completo" value={fullName} onChange={e => setFullName(e.target.value)} required />
         <Input label="Telefone (opcional)" type="tel" value={phone} onChange={e => setPhone(e.target.value)}
           placeholder="(00) 00000-0000" />
@@ -522,10 +533,6 @@ function UserForm({ open, onClose, editing, congregations, onSaved }: {
           </div>
         )}
 
-        <div className="flex gap-3 mt-2">
-          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
-          <Button type="submit" loading={loading} className="flex-1">{editing ? 'Salvar' : 'Criar Usuário'}</Button>
-        </div>
       </form>
     </Modal>
   )
@@ -565,8 +572,19 @@ function PasswordModal({ open, user, onClose }: { open: boolean; user: UserWithC
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Redefinir Senha" size="sm">
-      <form onSubmit={handleReset} className="flex flex-col gap-4">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Redefinir Senha"
+      size="sm"
+      footer={
+        <div className="flex gap-3">
+          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button form="password-form" type="submit" loading={loading} className="flex-1">Redefinir</Button>
+        </div>
+      }
+    >
+      <form id="password-form" onSubmit={handleReset} className="flex flex-col gap-4">
         <p className="text-sm text-stone-500">
           Nova senha para <strong className="text-stone-800 dark:text-stone-200">{user?.full_name}</strong>
         </p>
@@ -586,10 +604,6 @@ function PasswordModal({ open, user, onClose }: { open: boolean; user: UserWithC
           >
             {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
-        </div>
-        <div className="flex gap-3">
-          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
-          <Button type="submit" loading={loading} className="flex-1">Redefinir</Button>
         </div>
       </form>
     </Modal>

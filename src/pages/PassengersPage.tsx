@@ -375,9 +375,18 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
     }
   }
 
+  const formFooter = (
+    <div className="flex gap-3">
+      <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
+      <Button form="passenger-form" type="submit" loading={loading} className="flex-1">
+        {editing ? 'Salvar' : 'Cadastrar'}
+      </Button>
+    </div>
+  )
+
   return (
-    <Modal open={open} onClose={onClose} title={editing ? 'Editar Passageiro' : 'Novo Passageiro'} size="md">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Modal open={open} onClose={onClose} title={editing ? 'Editar Passageiro' : 'Novo Passageiro'} size="md" footer={formFooter}>
+      <form id="passenger-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         {isAdminGeneral && (
           <Select
             label="Congregação"
@@ -475,12 +484,6 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
           </div>
         )}
 
-        <div className="flex gap-3 mt-2">
-          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
-          <Button type="submit" loading={loading} className="flex-1">
-            {editing ? 'Salvar' : 'Cadastrar'}
-          </Button>
-        </div>
       </form>
     </Modal>
   )

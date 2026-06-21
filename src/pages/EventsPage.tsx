@@ -230,7 +230,20 @@ export function EventsPage() {
       )}
 
       {/* Form Modal */}
-      <Modal open={showForm} onClose={() => setShowForm(false)} title={editing ? 'Editar Evento' : 'Novo Evento'} size="lg">
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={editing ? 'Editar Evento' : 'Novo Evento'}
+        size="lg"
+        footer={
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setShowForm(false)} className="flex-1">Cancelar</Button>
+            <Button onClick={handleSave} loading={saving} className="flex-1">
+              {editing ? 'Salvar' : 'Criar Evento'}
+            </Button>
+          </div>
+        }
+      >
         <div className="space-y-4">
           <Input label="Nome do Evento *" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Congresso Regional 2026" />
           <div className="grid grid-cols-2 gap-3">
@@ -246,30 +259,34 @@ export function EventsPage() {
               <div className="space-y-2">
                 {previewDates.map((d, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="text-xs text-stone-500 w-24 flex-shrink-0">{d.toLocaleDateString('pt-BR')}</span>
+                    <span className="text-xs text-stone-500 w-20 flex-shrink-0">{d.toLocaleDateString('pt-BR')}</span>
                     <input type="text" value={getLabel(d)} onChange={e => setLabel(d, e.target.value)}
-                      className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                      className="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-400" />
                   </div>
                 ))}
               </div>
             </div>
           )}
         </div>
-        <div className="flex justify-end gap-2 mt-5">
-          <Button variant="ghost" onClick={() => setShowForm(false)}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar'}</Button>
-        </div>
       </Modal>
 
       {/* Congregation linking modal */}
       {showCongModal && (
-        <Modal open={!!showCongModal} onClose={() => setShowCongModal(null)} title={`Congregações — ${showCongModal.name}`} size="md">
+        <Modal
+          open={!!showCongModal}
+          onClose={() => { setShowCongModal(null); loadAll() }}
+          title={`Congregações — ${showCongModal.name}`}
+          size="md"
+          footer={
+            <Button onClick={() => { setShowCongModal(null); loadAll() }} className="w-full">Fechar</Button>
+          }
+        >
           <div className="space-y-2">
             {allCongregations.map(c => {
               const linked = showCongModal.congregations.some(sc => sc.id === c.id)
               return (
                 <button key={c.id} onClick={() => toggleCongregation(showCongModal, c.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 transition-all text-left active:scale-[0.99] ${
                     linked ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'border-stone-200 dark:border-stone-700 hover:border-amber-200'
                   }`}>
                   <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${linked ? 'border-amber-400 bg-amber-400' : 'border-stone-300'}`}>
@@ -282,9 +299,6 @@ export function EventsPage() {
                 </button>
               )
             })}
-          </div>
-          <div className="flex justify-end mt-4">
-            <Button onClick={() => { setShowCongModal(null); loadAll() }}>Fechar</Button>
           </div>
         </Modal>
       )}

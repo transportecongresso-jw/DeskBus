@@ -216,8 +216,21 @@ function CongregationForm({ open, onClose, editing, onSaved, createdBy }: {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? 'Editar Congregação' : 'Nova Congregação'} size="sm">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={editing ? 'Editar Congregação' : 'Nova Congregação'}
+      size="sm"
+      footer={
+        <div className="flex gap-3">
+          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button form="congregation-form" type="submit" loading={loading} className="flex-1">
+            {editing ? 'Salvar' : 'Criar'}
+          </Button>
+        </div>
+      }
+    >
+      <form id="congregation-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Input
           label="Nome da Congregação"
           value={name}
@@ -231,12 +244,6 @@ function CongregationForm({ open, onClose, editing, onSaved, createdBy }: {
           onChange={e => setCity(e.target.value)}
           placeholder="Ex: São Paulo - SP"
         />
-        <div className="flex gap-3 mt-2">
-          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
-          <Button type="submit" loading={loading} className="flex-1">
-            {editing ? 'Salvar' : 'Criar'}
-          </Button>
-        </div>
       </form>
     </Modal>
   )
