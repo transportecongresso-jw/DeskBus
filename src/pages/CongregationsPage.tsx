@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Building2, Plus, Pencil, Trash2, UserPlus, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Building2, Plus, Pencil, Trash2, UserPlus, Search, ArrowRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Congregation, Profile } from '../types'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -20,6 +21,7 @@ interface CongregationWithAdmins extends Congregation {
 
 export function CongregationsPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [congregations, setCongregations] = useState<CongregationWithAdmins[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -122,30 +124,23 @@ export function CongregationsPage() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-stone-100 dark:border-stone-700">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon={<UserPlus className="w-3.5 h-3.5" />}
-                    onClick={() => setShowAdminModal(cong)}
-                  >
+                {/* Botão de acesso em destaque */}
+                <button
+                  onClick={() => navigate(`/congregations/${cong.id}`)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 mb-3 rounded-xl bg-amber-400 hover:bg-amber-500 active:scale-[0.99] transition-all text-amber-950 font-semibold text-sm"
+                >
+                  Acessar Congregação
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-2 pt-3 border-t border-stone-100 dark:border-stone-700">
+                  <Button variant="ghost" size="sm" icon={<UserPlus className="w-3.5 h-3.5" />} onClick={() => setShowAdminModal(cong)}>
                     Admins
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon={<Pencil className="w-3.5 h-3.5" />}
-                    onClick={() => { setEditing(cong); setShowForm(true) }}
-                  >
+                  <Button variant="ghost" size="sm" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => { setEditing(cong); setShowForm(true) }}>
                     Editar
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon={<Trash2 className="w-3.5 h-3.5" />}
-                    className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                    onClick={() => setDeleting(cong)}
-                  >
+                  <Button variant="ghost" size="sm" icon={<Trash2 className="w-3.5 h-3.5" />} className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20" onClick={() => setDeleting(cong)}>
                     Excluir
                   </Button>
                 </div>
