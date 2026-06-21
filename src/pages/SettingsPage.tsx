@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Settings, User, Lock, Moon, Sun, Eye, EyeOff } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Settings, User, Lock, Moon, Sun, Eye, EyeOff, LogOut } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
@@ -11,8 +12,15 @@ import { HelpIcon } from '../components/ui/Tooltip'
 import toast from 'react-hot-toast'
 
 export function SettingsPage() {
-  const { profile, user } = useAuth()
+  const { profile, user, signOut } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const navigate = useNavigate()
+
+  async function handleSignOut() {
+    await signOut()
+    navigate('/login')
+    toast.success('Sessão encerrada')
+  }
   const [fullName, setFullName] = useState(profile?.full_name ?? '')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -132,7 +140,7 @@ export function SettingsPage() {
       </Card>
 
       {/* Appearance */}
-      <Card>
+      <Card className="mb-4">
         <CardHeader>
           <CardTitle>Aparência</CardTitle>
         </CardHeader>
@@ -154,6 +162,26 @@ export function SettingsPage() {
         <p className="text-xs text-stone-400 mt-3">
           Sua preferência de tema é salva automaticamente neste dispositivo.
         </p>
+      </Card>
+
+      {/* Logout — visible on mobile (desktop has it in the sidebar) */}
+      <Card className="lg:hidden">
+        <CardHeader>
+          <CardTitle>Sessão</CardTitle>
+        </CardHeader>
+        <div className="flex items-center justify-between p-4 bg-rose-50 dark:bg-rose-900/20 rounded-xl">
+          <div>
+            <p className="text-sm font-medium text-rose-700 dark:text-rose-400">Sair do sistema</p>
+            <p className="text-xs text-rose-400 mt-0.5">{profile?.email}</p>
+          </div>
+          <Button
+            variant="danger"
+            icon={<LogOut className="w-4 h-4" />}
+            onClick={handleSignOut}
+          >
+            Sair
+          </Button>
+        </div>
       </Card>
     </div>
   )

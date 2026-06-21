@@ -343,9 +343,18 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
 
   const capacities = CAPACITY_OPTIONS[type]
 
+  const formFooter = (
+    <div className="flex gap-3">
+      <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
+      <Button form="vehicle-form" type="submit" loading={loading} className="flex-1">
+        {editing ? 'Salvar' : 'Criar Veículo'}
+      </Button>
+    </div>
+  )
+
   return (
-    <Modal open={open} onClose={onClose} title={editing ? 'Editar Veículo' : 'Novo Veículo'} size="md">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Modal open={open} onClose={onClose} title={editing ? 'Editar Veículo' : 'Novo Veículo'} size="md" footer={formFooter}>
+      <form id="vehicle-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         {isAdminGeneral && (
           <Select
             label="Congregação"
@@ -441,12 +450,6 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
           </div>
         )}
 
-        <div className="flex gap-3 mt-2">
-          <Button variant="outline" type="button" onClick={onClose} className="flex-1">Cancelar</Button>
-          <Button type="submit" loading={loading} className="flex-1">
-            {editing ? 'Salvar' : 'Criar Veículo'}
-          </Button>
-        </div>
       </form>
     </Modal>
   )

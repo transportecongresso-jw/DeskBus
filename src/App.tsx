@@ -22,6 +22,7 @@ import { EventsPage } from './pages/EventsPage'
 import { TransportCompaniesPage } from './pages/TransportCompaniesPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { InvoicesPage } from './pages/InvoicesPage'
+import { AvailabilityPage } from './pages/AvailabilityPage'
 import { PageSpinner } from './components/ui/Spinner'
 
 const queryClient = new QueryClient()
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="audit" element={<AuditPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="transport-companies" element={<ProtectedRoute adminOnly><TransportCompaniesPage /></ProtectedRoute>} />
+        <Route path="availability" element={<AvailabilityPage />} />
         <Route path="ratings" element={<RatingsPage />} />
         <Route path="invoices" element={<InvoicesPage />} />
       </Route>

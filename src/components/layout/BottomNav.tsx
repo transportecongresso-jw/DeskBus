@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Bus, Users, ClipboardList,
-  Building2, CheckCircle2, Shield, UserCog, CalendarDays, Settings
+  Building2, BarChart3, Shield, Settings
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { cn } from '../../lib/utils'
@@ -13,13 +13,13 @@ export function BottomNav() {
     { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },
     { to: '/congregations', icon: <Building2 className="w-5 h-5" />, label: 'Congr.' },
     { to: '/vehicles', icon: <Bus className="w-5 h-5" />, label: 'Veículos' },
-    { to: '/boarding', icon: <ClipboardList className="w-5 h-5" />, label: 'Embarque' },
+    { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Vagas' },
     { to: '/audit', icon: <Shield className="w-5 h-5" />, label: 'Auditoria' },
   ] : [
     { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },
     { to: '/vehicles', icon: <Bus className="w-5 h-5" />, label: 'Veículos' },
     { to: '/passengers', icon: <Users className="w-5 h-5" />, label: 'Passag.' },
-    { to: '/boarding', icon: <ClipboardList className="w-5 h-5" />, label: 'Embarque' },
+    { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Vagas' },
     { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Config.' },
   ]
 
