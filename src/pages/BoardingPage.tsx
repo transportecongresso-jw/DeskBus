@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ClipboardList, CheckCircle2, XCircle, Clock, Search, Bus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ClipboardList, CheckCircle2, XCircle, Clock, Search, Bus, CalendarDays, Users, ChevronLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useEvent } from '../contexts/EventContext'
@@ -13,6 +13,7 @@ import toast from 'react-hot-toast'
 
 interface BoardingEntry {
   assignmentId: string
+  passengerId: string
   seatNumber: number
   passengerName: string
   documentType: string
@@ -25,22 +26,34 @@ interface BoardingEntry {
 
 export function BoardingPage() {
   const { isAdminGeneral, congregationIds } = useAuth()
-  const { selectedEvent } = useEvent()
+  const { selectedEvent, eventDays } = useEvent()
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [congregations, setCongregations] = useState<Congregation[]>([])
-  const [selectedVehicle, setSelectedVehicle] = useState('')
+  const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
+  const [totalSeats, setTotalSeats] = useState(0)
   const [entries, setEntries] = useState<BoardingEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | BoardingStatus>('all')
   const [obsModal, setObsModal] = useState<{ entry: BoardingEntry; obs: string } | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { loadVehicles() }, [selectedEvent])
-  useEffect(() => { if (selectedVehicle) loadBoardingList(selectedVehicle) }, [selectedVehicle])
+  useEffect(() => {
+    if (selectedVehicle) {
+      loadBoardingList(selectedVehicle)
+      setSearch('')
+      setFilter('all')
+    } else {
+      setEntries([])
+      setTotalSeats(0)
+    }
+  }, [selectedVehicle])
 
   async function loadVehicles() {
     setInitialLoading(true)
+    setSelectedVehicle(null)
     let cQuery = supabase.from('congregations').select('*').order('name')
     if (!isAdminGeneral && congregationIds.length > 0) cQuery = cQuery.in('id', congregationIds)
     const { data: congs } = await cQuery
@@ -52,15 +65,21 @@ export function BoardingPage() {
     if (selectedEvent) vQuery = vQuery.eq('event_id', selectedEvent.id)
     const { data: vData } = await vQuery
     setVehicles(vData ?? [])
-    if (vData && vData.length > 0) setSelectedVehicle(vData[0].id)
-    else setSelectedVehicle('')
     setInitialLoading(false)
   }
 
   async function loadBoardingList(vehicleId: string) {
     setLoading(true)
 
-    // Queries separadas para evitar problema de join PostgREST + RLS
+    const vehicle = vehicles.find(v => v.id === vehicleId)
+    if (vehicle) {
+      const { count } = await supabase
+        .from('seats')
+        .select('*', { count: 'exact', head: true })
+        .eq('vehicle_id', vehicleId)
+      setTotalSeats(count ?? vehicle.capacity ?? 0)
+    }
+
     const { data: assignments, error: aErr } = await supabase
       .from('seat_assignments')
       .select('*')
@@ -84,6 +103,7 @@ export function BoardingPage() {
       const passenger = (passengers ?? []).find(p => p.id === a.passenger_id)
       return {
         assignmentId: a.id,
+        passengerId: a.passenger_id,
         seatNumber: seat?.seat_number ?? 0,
         passengerName: passenger?.full_name ?? '',
         documentType: passenger?.document_type ?? 'cpf',
@@ -95,7 +115,15 @@ export function BoardingPage() {
       }
     }).sort((a, b) => a.seatNumber - b.seatNumber)
 
-    setEntries(list)
+    // Deduplicar por passenger_id: manter apenas o primeiro vínculo (menor assento)
+    const seen = new Set<string>()
+    const deduped = list.filter(e => {
+      if (seen.has(e.passengerId)) return false
+      seen.add(e.passengerId)
+      return true
+    })
+
+    setEntries(deduped)
     setLoading(false)
   }
 
@@ -128,198 +156,258 @@ export function BoardingPage() {
   const pct = entries.length > 0 ? Math.round((boarded / entries.length) * 100) : 0
 
   const selectedVehicleObj = vehicles.find(v => v.id === selectedVehicle)
+  const vehicleDay = selectedVehicleObj?.event_day_id
+    ? eventDays.find(d => d.id === selectedVehicleObj.event_day_id)
+    : null
+  const vehicleCong = selectedVehicleObj
+    ? congregations.find(c => c.id === selectedVehicleObj.congregation_id)
+    : null
 
   if (initialLoading) return (
     <div className="flex items-center justify-center py-24"><Spinner size="lg" label="Carregando..." /></div>
   )
 
+  // ── Tela de seleção de veículo ──
+  if (!selectedVehicle) {
+    return (
+      <div className="animate-fade-in space-y-4">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-800 dark:text-stone-100 flex items-center gap-2">
+            <ClipboardList className="w-6 h-6 text-amber-500" />
+            Embarque
+          </h1>
+          <p className="text-sm text-stone-500 mt-0.5">Selecione o veículo para iniciar o checklist</p>
+        </div>
+
+        {selectedEvent && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-700">
+            <CalendarDays className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <span className="text-sm font-medium text-amber-700 dark:text-amber-400">{selectedEvent.name}</span>
+          </div>
+        )}
+
+        {vehicles.length === 0 ? (
+          <div className="p-10 bg-white dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 text-center">
+            <Bus className="w-10 h-10 mx-auto mb-2 text-stone-300" />
+            <p className="text-sm text-stone-400">Nenhum veículo disponível para o evento selecionado</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {/* Agrupar por dia se houver dias */}
+            {eventDays.length > 0 ? (
+              eventDays.map(day => {
+                const dayVehicles = vehicles.filter(v => v.event_day_id === day.id)
+                if (dayVehicles.length === 0) return null
+                return (
+                  <div key={day.id}>
+                    <p className="text-xs font-bold text-stone-400 uppercase tracking-widest px-1 mb-2">{day.label}</p>
+                    <div className="space-y-2">
+                      {dayVehicles.map(v => <VehicleCard key={v.id} v={v} cong={congregations.find(c => c.id === v.congregation_id)} onSelect={() => setSelectedVehicle(v.id)} />)}
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              vehicles.map(v => <VehicleCard key={v.id} v={v} cong={congregations.find(c => c.id === v.congregation_id)} onSelect={() => setSelectedVehicle(v.id)} />)
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Checklist do veículo selecionado ──
   return (
-    <div className="animate-fade-in space-y-4">
-      {/* Header compacto */}
-      <div>
-        <h1 className="text-2xl font-bold text-stone-800 dark:text-stone-100 flex items-center gap-2">
-          <ClipboardList className="w-6 h-6 text-amber-500" />
-          Embarque
-        </h1>
-        <p className="text-sm text-stone-500 mt-0.5">Controle de embarque por veículo</p>
+    <div className="animate-fade-in space-y-4" ref={listRef}>
+
+      {/* Sticky header — sempre visível durante rolagem */}
+      <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-stone-50/95 dark:bg-stone-950/95 backdrop-blur-sm border-b border-stone-200 dark:border-stone-800">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSelectedVehicle(null)}
+            className="p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-500 hover:border-amber-300 transition-all"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              {selectedEvent && (
+                <span className="text-xs text-stone-400 truncate">{selectedEvent.name}</span>
+              )}
+              {vehicleDay && (
+                <>
+                  <span className="text-stone-300 dark:text-stone-600">·</span>
+                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">{vehicleDay.label}</span>
+                </>
+              )}
+            </div>
+            <p className="font-bold text-stone-800 dark:text-stone-100 truncate leading-tight">
+              {selectedVehicleObj?.name}
+            </p>
+            {vehicleCong && (
+              <p className="text-xs text-stone-400 truncate">{vehicleCong.name}</p>
+            )}
+          </div>
+          <div className="flex-shrink-0 text-right">
+            <p className="text-lg font-bold text-stone-800 dark:text-stone-100">{entries.length}</p>
+            <p className="text-[10px] text-stone-400">passageiros</p>
+          </div>
+        </div>
+
+        {/* Barra de progresso compacta no header */}
+        {entries.length > 0 && (
+          <div className="mt-2 h-1.5 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden flex">
+            {boarded > 0 && <div className="h-full bg-emerald-400 transition-all" style={{ width: `${(boarded / entries.length) * 100}%` }} />}
+            {notBoarded > 0 && <div className="h-full bg-rose-400 transition-all" style={{ width: `${(notBoarded / entries.length) * 100}%` }} />}
+          </div>
+        )}
       </div>
 
-      {/* Seletor de veículo — destaque total no mobile */}
-      {vehicles.length === 0 ? (
-        <div className="p-6 bg-white dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 text-center">
+      {/* Card de info do veículo */}
+      <div className="bg-amber-400 rounded-2xl p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
+              {selectedEvent?.name}
+              {vehicleDay ? ` · ${vehicleDay.label}` : ''}
+            </p>
+            <h2 className="text-2xl font-bold text-amber-950 mt-0.5">{selectedVehicleObj?.name}</h2>
+            {vehicleCong && <p className="text-sm text-amber-800">{vehicleCong.name}</p>}
+          </div>
+          <div className="bg-amber-300/50 rounded-xl px-3 py-2 text-center flex-shrink-0">
+            <Bus className="w-5 h-5 text-amber-900 mx-auto" />
+            <p className="text-xs font-bold text-amber-900 mt-0.5">{totalSeats || selectedVehicleObj?.capacity || '—'} lug.</p>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-3">
+          <div className="flex items-center gap-1.5 bg-amber-300/40 rounded-lg px-2.5 py-1">
+            <Users className="w-3.5 h-3.5 text-amber-900" />
+            <span className="text-xs font-bold text-amber-900">{entries.length} vinculados</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-emerald-500/20 rounded-lg px-2.5 py-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-800" />
+            <span className="text-xs font-bold text-emerald-900">{boarded} embarcou</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-amber-950/10 rounded-lg px-2.5 py-1">
+            <Clock className="w-3.5 h-3.5 text-amber-900" />
+            <span className="text-xs font-bold text-amber-900">{pending} pendente{pending !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats 2x2 */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatTile label="Total" value={entries.length} color="stone" icon={<ClipboardList className="w-5 h-5" />} />
+        <StatTile label="Embarcou" value={boarded} color="emerald" icon={<CheckCircle2 className="w-5 h-5" />} />
+        <StatTile label="Pendente" value={pending} color="amber" icon={<Clock className="w-5 h-5" />} />
+        <StatTile label="Ausentes" value={notBoarded} color="rose" icon={<XCircle className="w-5 h-5" />} />
+      </div>
+
+      {/* Pesquisa */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+        <input
+          placeholder="Pesquisar passageiro..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-base focus:outline-none focus:ring-2 focus:ring-amber-400 min-h-[52px]"
+        />
+      </div>
+
+      {/* Filtros */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {([['all', 'Todos', entries.length], ['pending', 'Pendentes', pending], ['boarded', 'Embarcou', boarded], ['not_boarded', 'Ausentes', notBoarded]] as const).map(([val, label, count]) => (
+          <button
+            key={val}
+            onClick={() => setFilter(val)}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-medium transition-all min-h-[44px] ${
+              filter === val
+                ? 'bg-amber-400 text-amber-950'
+                : 'bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400'
+            }`}
+          >
+            {label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${filter === val ? 'bg-amber-300/50' : 'bg-stone-100 dark:bg-stone-700'}`}>{count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Lista de embarque */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16"><Spinner size="lg" label="Carregando lista..." /></div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 p-10 text-center">
           <Bus className="w-10 h-10 mx-auto mb-2 text-stone-300" />
-          <p className="text-sm text-stone-400">Nenhum veículo disponível para o evento selecionado</p>
+          <p className="text-sm text-stone-400">
+            {entries.length === 0 ? 'Nenhum passageiro com assento atribuído neste veículo' : 'Nenhum passageiro encontrado'}
+          </p>
         </div>
       ) : (
-        <>
-          <div className="bg-white dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 p-4">
-            <label className="block text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Veículo</label>
-            <div className="grid gap-2">
-              {vehicles.map(v => {
-                const cong = congregations.find(c => c.id === v.congregation_id)
-                return (
-                  <button
-                    key={v.id}
-                    onClick={() => setSelectedVehicle(v.id)}
-                    className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                      selectedVehicle === v.id
-                        ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
-                        : 'border-stone-100 dark:border-stone-700 hover:border-amber-200'
-                    }`}
-                  >
-                    <Bus className={`w-5 h-5 flex-shrink-0 ${selectedVehicle === v.id ? 'text-amber-500' : 'text-stone-400'}`} />
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm text-stone-800 dark:text-stone-100">{v.name}</p>
-                      {cong && congregations.length > 1 && (
-                        <p className="text-xs text-stone-400">{cong.name}</p>
-                      )}
-                    </div>
-                    {selectedVehicle === v.id && (
-                      <CheckCircle2 className="w-4 h-4 text-amber-500 ml-auto flex-shrink-0" />
-                    )}
-                  </button>
-                )
-              })}
+        <div className="space-y-2.5">
+          {filtered.map(entry => (
+            <div
+              key={entry.assignmentId}
+              className={`bg-white dark:bg-stone-800 rounded-2xl border-2 transition-all ${
+                entry.boardingStatus === 'boarded'
+                  ? 'border-emerald-300 dark:border-emerald-700'
+                  : entry.boardingStatus === 'not_boarded'
+                  ? 'border-rose-300 dark:border-rose-700'
+                  : 'border-stone-100 dark:border-stone-700'
+              }`}
+            >
+              <div className="flex items-center gap-3 p-4">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm ${
+                  entry.boardingStatus === 'boarded'
+                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                    : entry.boardingStatus === 'not_boarded'
+                    ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'
+                    : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                }`}>
+                  {entry.seatNumber}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-stone-800 dark:text-stone-100 truncate">{entry.passengerName}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-xs text-stone-400">{formatDocumentType(entry.documentType as any)} · {entry.documentNumber}</span>
+                    {entry.isMinor && <Badge variant="warning">Menor</Badge>}
+                    {entry.paymentStatus === 'pending' && <Badge variant="danger">Pag. Pendente</Badge>}
+                  </div>
+                  {entry.boardingObservation && (
+                    <p className="text-xs text-stone-400 italic mt-0.5">"{entry.boardingObservation}"</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex border-t border-stone-100 dark:border-stone-700">
+                <button
+                  onClick={() => updateBoarding(entry.assignmentId, entry.boardingStatus === 'boarded' ? 'pending' : 'boarded')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium rounded-bl-2xl transition-all ${
+                    entry.boardingStatus === 'boarded'
+                      ? 'bg-emerald-500 text-white'
+                      : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/10'
+                  }`}
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  Embarcou
+                </button>
+                <div className="w-px bg-stone-100 dark:bg-stone-700" />
+                <button
+                  onClick={() => entry.boardingStatus === 'not_boarded'
+                    ? updateBoarding(entry.assignmentId, 'pending')
+                    : setObsModal({ entry, obs: entry.boardingObservation ?? '' })}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium rounded-br-2xl transition-all ${
+                    entry.boardingStatus === 'not_boarded'
+                      ? 'bg-rose-500 text-white'
+                      : 'text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/10'
+                  }`}
+                >
+                  <XCircle className="w-5 h-5" />
+                  Ausente
+                </button>
+              </div>
             </div>
-          </div>
-
-          {selectedVehicle && (
-            <>
-              {/* Stats — 4 tiles 2x2 no mobile */}
-              <div className="grid grid-cols-2 gap-3">
-                <StatTile label="Total" value={entries.length} color="stone" icon={<ClipboardList className="w-5 h-5" />} />
-                <StatTile label="Embarcou" value={boarded} color="emerald" icon={<CheckCircle2 className="w-5 h-5" />} />
-                <StatTile label="Pendente" value={pending} color="amber" icon={<Clock className="w-5 h-5" />} />
-                <StatTile label="Ausentes" value={notBoarded} color="rose" icon={<XCircle className="w-5 h-5" />} />
-              </div>
-
-              {/* Barra de progresso */}
-              {entries.length > 0 && (
-                <div className="bg-white dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 p-4">
-                  <div className="flex justify-between text-sm font-medium mb-2">
-                    <span className="text-stone-700 dark:text-stone-200">Progresso</span>
-                    <span className="text-amber-600 dark:text-amber-400">{boarded}/{entries.length} ({pct}%)</span>
-                  </div>
-                  <div className="h-3 bg-stone-100 dark:bg-stone-700 rounded-full overflow-hidden flex">
-                    {boarded > 0 && <div className="h-full bg-emerald-400 transition-all" style={{ width: `${(boarded / entries.length) * 100}%` }} />}
-                    {notBoarded > 0 && <div className="h-full bg-rose-400 transition-all" style={{ width: `${(notBoarded / entries.length) * 100}%` }} />}
-                  </div>
-                </div>
-              )}
-
-              {/* Pesquisa */}
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
-                <input
-                  placeholder="Pesquisar passageiro..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-base focus:outline-none focus:ring-2 focus:ring-amber-400 min-h-[52px]"
-                />
-              </div>
-
-              {/* Filtros por status */}
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {([['all', 'Todos', entries.length], ['pending', 'Pendentes', pending], ['boarded', 'Embarcou', boarded], ['not_boarded', 'Ausentes', notBoarded]] as const).map(([val, label, count]) => (
-                  <button
-                    key={val}
-                    onClick={() => setFilter(val)}
-                    className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-medium transition-all min-h-[44px] ${
-                      filter === val
-                        ? 'bg-amber-400 text-amber-950'
-                        : 'bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400'
-                    }`}
-                  >
-                    {label}
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${filter === val ? 'bg-amber-300/50' : 'bg-stone-100 dark:bg-stone-700'}`}>{count}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Lista de embarque */}
-              {loading ? (
-                <div className="flex items-center justify-center py-16"><Spinner size="lg" label="Carregando lista..." /></div>
-              ) : filtered.length === 0 ? (
-                <div className="bg-white dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 p-10 text-center">
-                  <Bus className="w-10 h-10 mx-auto mb-2 text-stone-300" />
-                  <p className="text-sm text-stone-400">
-                    {entries.length === 0 ? 'Nenhum passageiro com assento atribuído neste veículo' : 'Nenhum passageiro encontrado'}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {filtered.map(entry => (
-                    <div
-                      key={entry.assignmentId}
-                      className={`bg-white dark:bg-stone-800 rounded-2xl border-2 transition-all ${
-                        entry.boardingStatus === 'boarded'
-                          ? 'border-emerald-300 dark:border-emerald-700'
-                          : entry.boardingStatus === 'not_boarded'
-                          ? 'border-rose-300 dark:border-rose-700'
-                          : 'border-stone-100 dark:border-stone-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 p-4">
-                        {/* Número do assento */}
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm ${
-                          entry.boardingStatus === 'boarded'
-                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                            : entry.boardingStatus === 'not_boarded'
-                            ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'
-                            : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
-                        }`}>
-                          {entry.seatNumber}
-                        </div>
-
-                        {/* Info passageiro */}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-stone-800 dark:text-stone-100 truncate">{entry.passengerName}</p>
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            <span className="text-xs text-stone-400">{formatDocumentType(entry.documentType as any)} · {entry.documentNumber}</span>
-                            {entry.isMinor && <Badge variant="warning">Menor</Badge>}
-                            {entry.paymentStatus === 'pending' && <Badge variant="danger">Pag. Pendente</Badge>}
-                          </div>
-                          {entry.boardingObservation && (
-                            <p className="text-xs text-stone-400 italic mt-0.5">"{entry.boardingObservation}"</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Botões de embarque — linha separada, full width no mobile */}
-                      <div className="flex border-t border-stone-100 dark:border-stone-700">
-                        <button
-                          onClick={() => updateBoarding(entry.assignmentId, entry.boardingStatus === 'boarded' ? 'pending' : 'boarded')}
-                          className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium rounded-bl-2xl transition-all ${
-                            entry.boardingStatus === 'boarded'
-                              ? 'bg-emerald-500 text-white'
-                              : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/10'
-                          }`}
-                        >
-                          <CheckCircle2 className="w-5 h-5" />
-                          Embarcou
-                        </button>
-                        <div className="w-px bg-stone-100 dark:bg-stone-700" />
-                        <button
-                          onClick={() => entry.boardingStatus === 'not_boarded'
-                            ? updateBoarding(entry.assignmentId, 'pending')
-                            : setObsModal({ entry, obs: entry.boardingObservation ?? '' })}
-                          className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium rounded-br-2xl transition-all ${
-                            entry.boardingStatus === 'not_boarded'
-                              ? 'bg-rose-500 text-white'
-                              : 'text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/10'
-                          }`}
-                        >
-                          <XCircle className="w-5 h-5" />
-                          Ausente
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </>
+          ))}
+        </div>
       )}
 
       {/* Modal de ausência */}
@@ -369,6 +457,27 @@ export function BoardingPage() {
         </Modal>
       )}
     </div>
+  )
+}
+
+function VehicleCard({ v, cong, onSelect }: { v: Vehicle; cong?: Congregation; onSelect: () => void }) {
+  return (
+    <button
+      onClick={onSelect}
+      className="w-full text-left flex items-center gap-3 p-4 rounded-2xl border-2 border-stone-100 dark:border-stone-700 bg-white dark:bg-stone-800 hover:border-amber-300 dark:hover:border-amber-700 active:scale-[0.99] transition-all"
+    >
+      <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center flex-shrink-0">
+        <Bus className="w-5 h-5 text-amber-500" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-stone-800 dark:text-stone-100">{v.name}</p>
+        {cong && <p className="text-xs text-stone-400 truncate">{cong.name}</p>}
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="text-sm font-bold text-stone-600 dark:text-stone-300">{v.capacity}</p>
+        <p className="text-[10px] text-stone-400">lugares</p>
+      </div>
+    </button>
   )
 }
 
