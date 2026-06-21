@@ -53,30 +53,45 @@ export function VehicleDetailPage() {
     const { data: cong } = await supabase.from('congregations').select('*').eq('id', v.congregation_id).single()
     setCongregation(cong)
 
-    // Load seats with assignments
-    const { data: seatData } = await supabase
+    // Load seats
+    const { data: seatData, error: seatError } = await supabase
       .from('seats')
       .select('*')
       .eq('vehicle_id', vehicleId)
       .order('seat_number')
+    if (seatError) console.error('[DeskBus] seats error:', seatError)
 
-    const { data: assignData } = await supabase
+    // Load seat assignments WITHOUT embedded join (avoids PostgREST RLS join issue)
+    const { data: assignData, error: assignError } = await supabase
       .from('seat_assignments')
-      .select('*, passenger:passengers(*)')
+      .select('*')
       .eq('vehicle_id', vehicleId)
       .eq('status', 'active')
+    if (assignError) console.error('[DeskBus] seat_assignments error:', assignError)
+
+    // Load all congregation passengers
+    const { data: pData, error: pError } = await supabase
+      .from('passengers')
+      .select('*')
+      .eq('congregation_id', v.congregation_id)
+      .order('full_name')
+    if (pError) console.error('[DeskBus] passengers error:', pError)
+
+    const allPassengers = pData ?? []
+    const assignedIds = (assignData ?? []).map(a => a.passenger_id)
+
+    // Enrich assignments with passenger data manually
+    const assignDataEnriched = (assignData ?? []).map(a => ({
+      ...a,
+      passenger: allPassengers.find(p => p.id === a.passenger_id) ?? null,
+    }))
 
     const enriched: SeatWithAssignment[] = (seatData ?? []).map(seat => ({
       ...seat,
-      assignment: assignData?.find(a => a.seat_id === seat.id) as any ?? undefined,
+      assignment: assignDataEnriched.find(a => a.seat_id === seat.id) as any ?? undefined,
     }))
     setSeats(enriched)
-
-    // Load unassigned passengers
-    const assignedIds = assignData?.map(a => a.passenger_id) ?? []
-    let pQuery = supabase.from('passengers').select('*').eq('congregation_id', v.congregation_id).order('full_name')
-    const { data: pData } = await pQuery
-    setPassengers(pData?.filter(p => !assignedIds.includes(p.id)) ?? [])
+    setPassengers(allPassengers.filter(p => !assignedIds.includes(p.id)))
 
     setLoading(false)
   }
