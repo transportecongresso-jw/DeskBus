@@ -1,5 +1,31 @@
 export type UserRole = 'admin_general' | 'admin_congregation'
 
+export interface Event {
+  id: string
+  name: string
+  start_date: string
+  end_date: string
+  is_active: boolean
+  created_at: string
+  created_by: string | null
+}
+
+export interface EventDay {
+  id: string
+  event_id: string
+  date: string
+  label: string
+  day_order: number
+  created_at: string
+}
+
+export interface PassengerEventDay {
+  id: string
+  passenger_id: string
+  event_day_id: string
+  created_at: string
+}
+
 export interface Profile {
   id: string
   email: string
@@ -35,6 +61,7 @@ export type VehicleType = 'bus' | 'van'
 export interface Vehicle {
   id: string
   congregation_id: string
+  event_day_id: string | null
   type: VehicleType
   capacity: number
   name: string
@@ -43,6 +70,7 @@ export interface Vehicle {
   exported_at: string | null
   created_at: string
   congregation?: Congregation
+  event_day?: EventDay
 }
 
 export interface Seat {

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bus, Plus, Pencil, Trash2, Users, ChevronRight } from 'lucide-react'
+import { Bus, Plus, Pencil, Trash2, Users, ChevronRight, CalendarDays } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useEvent } from '../contexts/EventContext'
 import { Vehicle, Congregation, VehicleType } from '../types'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Card } from '../components/ui/Card'
@@ -29,6 +30,7 @@ const CAPACITY_OPTIONS = {
 
 export function VehiclesPage() {
   const { isAdminGeneral, congregationIds } = useAuth()
+  const { activeEvent, eventDays } = useEvent()
   const navigate = useNavigate()
   const [vehicles, setVehicles] = useState<VehicleWithStats[]>([])
   const [congregations, setCongregations] = useState<Congregation[]>([])
@@ -36,12 +38,12 @@ export function VehiclesPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Vehicle | null>(null)
   const [deleting, setDeleting] = useState<Vehicle | null>(null)
+  const [selectedDayId, setSelectedDayId] = useState<string>('all')
 
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
     setLoading(true)
-    // Load congregations
     let cQuery = supabase.from('congregations').select('*').order('name')
     if (!isAdminGeneral && congregationIds.length > 0) cQuery = cQuery.in('id', congregationIds)
     const { data: congs } = await cQuery
@@ -49,14 +51,11 @@ export function VehiclesPage() {
 
     const congIds = (congs ?? []).map(c => c.id)
 
-    // Load vehicles
     let vQuery = supabase.from('vehicles').select('*').order('name')
     if (congIds.length > 0) vQuery = vQuery.in('congregation_id', congIds)
     const { data: vData } = await vQuery
-
     if (!vData) { setLoading(false); return }
 
-    // Load assignments count per vehicle
     const { data: assignments } = await supabase
       .from('seat_assignments')
       .select('vehicle_id')
@@ -85,11 +84,17 @@ export function VehiclesPage() {
     }
   }
 
+  const filteredVehicles = selectedDayId === 'all'
+    ? vehicles
+    : selectedDayId === 'none'
+      ? vehicles.filter(v => !v.event_day_id)
+      : vehicles.filter(v => v.event_day_id === selectedDayId)
+
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="Veículos"
-        subtitle="Gerencie os veículos e sua ocupação"
+        subtitle={activeEvent ? `${activeEvent.name}` : 'Gerencie os veículos e sua ocupação'}
         icon={<Bus className="w-6 h-6" />}
         actions={
           <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowForm(true) }}>
@@ -98,14 +103,45 @@ export function VehiclesPage() {
         }
       />
 
+      {/* Day tabs when there's an active event */}
+      {activeEvent && eventDays.length > 0 && (
+        <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
+          <button
+            onClick={() => setSelectedDayId('all')}
+            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
+              selectedDayId === 'all'
+                ? 'bg-amber-400 text-amber-950'
+                : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700 hover:border-amber-300'
+            }`}
+          >
+            Todos os dias
+          </button>
+          {eventDays.map(d => (
+            <button
+              key={d.id}
+              onClick={() => setSelectedDayId(d.id)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
+                selectedDayId === d.id
+                  ? 'bg-amber-400 text-amber-950'
+                  : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700 hover:border-amber-300'
+              }`}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <Spinner className="py-20" label="Carregando veículos..." />
-      ) : vehicles.length === 0 ? (
+      ) : filteredVehicles.length === 0 ? (
         <Card>
           <div className="text-center py-12">
             <Bus className="w-12 h-12 text-stone-300 mx-auto mb-3" />
             <h3 className="text-base font-medium text-stone-600 dark:text-stone-300 mb-1">Nenhum veículo cadastrado</h3>
-            <p className="text-sm text-stone-400 mb-4">Comece adicionando o primeiro veículo da congregação</p>
+            <p className="text-sm text-stone-400 mb-4">
+              {selectedDayId !== 'all' ? 'Nenhum veículo para este dia' : 'Comece adicionando o primeiro veículo'}
+            </p>
             <Button onClick={() => setShowForm(true)} icon={<Plus className="w-4 h-4" />}>
               Adicionar Veículo
             </Button>
@@ -113,16 +149,15 @@ export function VehiclesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {vehicles.map(v => {
+          {filteredVehicles.map(v => {
             const pct = Math.min(100, Math.round((v.occupied / v.capacity) * 100))
             const isFull = v.occupied >= v.capacity
             const excess = v.occupied > v.capacity ? v.occupied - v.capacity : 0
+            const dayLabel = eventDays.find(d => d.id === v.event_day_id)?.label
 
             return (
               <Card key={v.id} padding="none" className="overflow-hidden group hover:shadow-md transition-shadow">
-                {/* Color bar */}
                 <div className={`h-1.5 w-full ${isFull ? 'bg-emerald-400' : excess > 0 ? 'bg-rose-400' : 'bg-amber-300'}`} />
-
                 <div className="p-5">
                   <div className="flex items-start justify-between mb-4">
                     <div>
@@ -130,13 +165,17 @@ export function VehiclesPage() {
                       {v.congregation && (
                         <p className="text-xs text-stone-400 mt-0.5">{v.congregation.name}</p>
                       )}
+                      {dayLabel && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full mt-1">
+                          <CalendarDays className="w-3 h-3" />{dayLabel}
+                        </span>
+                      )}
                     </div>
                     <Badge variant={v.type === 'bus' ? 'info' : 'warning'}>
                       {formatVehicleType(v.type)}
                     </Badge>
                   </div>
 
-                  {/* Stats row */}
                   <div className="grid grid-cols-3 gap-2 mb-4">
                     <div className="text-center p-2 bg-stone-50 dark:bg-stone-700 rounded-lg">
                       <p className="text-lg font-bold text-stone-700 dark:text-stone-200">{v.capacity}</p>
@@ -160,7 +199,6 @@ export function VehiclesPage() {
                     </div>
                   )}
 
-                  {/* Progress */}
                   <div className="mb-4">
                     <div className="flex justify-between text-xs text-stone-400 mb-1.5">
                       <span>Ocupação</span>
@@ -179,35 +217,19 @@ export function VehiclesPage() {
                       <Users className="w-3.5 h-3.5" />
                       Passagem: {formatCurrency(v.ticket_price)}
                     </span>
-                    {v.exported_at && (
-                      <Badge variant="success" dot>Lista exportada</Badge>
-                    )}
+                    {v.exported_at && <Badge variant="success" dot>Lista exportada</Badge>}
                   </div>
 
-                  {/* Actions */}
                   <div className="flex gap-2 pt-3 border-t border-stone-100 dark:border-stone-700">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="flex-1"
-                      icon={<ChevronRight className="w-4 h-4" />}
-                      onClick={() => navigate(`/vehicles/${v.id}`)}
-                    >
+                    <Button variant="primary" size="sm" className="flex-1" icon={<ChevronRight className="w-4 h-4" />}
+                      onClick={() => navigate(`/vehicles/${v.id}`)}>
                       Gerenciar
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<Pencil className="w-4 h-4" />}
-                      onClick={() => { setEditing(v); setShowForm(true) }}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<Trash2 className="w-4 h-4" />}
+                    <Button variant="ghost" size="sm" icon={<Pencil className="w-4 h-4" />}
+                      onClick={() => { setEditing(v); setShowForm(true) }} />
+                    <Button variant="ghost" size="sm" icon={<Trash2 className="w-4 h-4" />}
                       className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                      onClick={() => setDeleting(v)}
-                    />
+                      onClick={() => setDeleting(v)} />
                   </div>
                 </div>
               </Card>
@@ -241,11 +263,13 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
   congregations: Congregation[]; onSaved: () => void
 }) {
   const { isAdminGeneral, congregationIds } = useAuth()
+  const { activeEvent, eventDays } = useEvent()
   const [type, setType] = useState<VehicleType>('bus')
   const [capacity, setCapacity] = useState(46)
   const [name, setName] = useState('')
   const [congregationId, setCongregationId] = useState('')
   const [ticketPrice, setTicketPrice] = useState(0)
+  const [eventDayId, setEventDayId] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -255,12 +279,14 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
       setName(editing.name)
       setCongregationId(editing.congregation_id)
       setTicketPrice(editing.ticket_price)
+      setEventDayId(editing.event_day_id ?? '')
     } else {
       setType('bus')
       setCapacity(46)
       setName('')
       setCongregationId(isAdminGeneral ? '' : congregationIds[0] ?? '')
       setTicketPrice(0)
+      setEventDayId('')
     }
   }, [editing, open])
 
@@ -268,21 +294,19 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
     e.preventDefault()
     setLoading(true)
     try {
+      const payload: any = {
+        type, capacity, name, congregation_id: congregationId,
+        ticket_price: ticketPrice,
+        event_day_id: eventDayId || null,
+      }
       if (editing) {
-        const { error } = await supabase.from('vehicles').update({
-          type, capacity, name, congregation_id: congregationId, ticket_price: ticketPrice
-        }).eq('id', editing.id)
+        const { error } = await supabase.from('vehicles').update(payload).eq('id', editing.id)
         if (error) throw error
         toast.success('Veículo atualizado')
       } else {
-        // Create vehicle
-        const { data: vehicle, error } = await supabase.from('vehicles').insert({
-          type, capacity, name, congregation_id: congregationId, ticket_price: ticketPrice,
-          export_count: 0,
-        }).select().single()
+        const { data: vehicle, error } = await supabase.from('vehicles')
+          .insert({ ...payload, export_count: 0 }).select().single()
         if (error) throw error
-
-        // Generate seats
         const seats = Array.from({ length: capacity }, (_, i) => ({
           vehicle_id: vehicle.id,
           seat_number: i + 1,
@@ -317,23 +341,30 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
           />
         )}
 
+        {activeEvent && eventDays.length > 0 && (
+          <Select
+            label={`Dia do Evento — ${activeEvent.name}`}
+            value={eventDayId}
+            onChange={e => setEventDayId(e.target.value)}
+            options={[
+              { value: '', label: 'Sem dia específico' },
+              ...eventDays.map(d => ({ value: d.id, label: d.label })),
+            ]}
+          />
+        )}
+
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1.5">
             <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Tipo de Veículo <span className="text-rose-500">*</span></label>
-            <HelpIcon content="Escolha entre Ônibus (maior capacidade) ou Van (menor, mais ágil). O tipo define o layout visual do mapa de assentos." />
+            <HelpIcon content="Escolha entre Ônibus (maior capacidade) ou Van (menor, mais ágil)." />
           </div>
           <div className="grid grid-cols-2 gap-3">
             {(['bus', 'van'] as VehicleType[]).map(t => (
-              <button
-                key={t}
-                type="button"
+              <button key={t} type="button"
                 onClick={() => { setType(t); setCapacity(CAPACITY_OPTIONS[t][0]) }}
                 className={`p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
-                  type === t
-                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
-                    : 'border-stone-200 dark:border-stone-600 hover:border-amber-200'
-                }`}
-              >
+                  type === t ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'border-stone-200 dark:border-stone-600 hover:border-amber-200'
+                }`}>
                 <Bus className={`w-7 h-7 mx-auto mb-1.5 ${type === t ? 'text-amber-500' : 'text-stone-400'}`} />
                 <p className={`text-sm font-medium ${type === t ? 'text-amber-700 dark:text-amber-400' : 'text-stone-500'}`}>
                   {formatVehicleType(t)}
@@ -344,52 +375,30 @@ function VehicleForm({ open, onClose, editing, congregations, onSaved }: {
         </div>
 
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1.5">
-            <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Capacidade <span className="text-rose-500">*</span></label>
-            <HelpIcon content="Número total de assentos disponíveis para passageiros. O sistema gerará automaticamente o mapa visual com essa quantidade." />
-          </div>
+          <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Capacidade <span className="text-rose-500">*</span></label>
           <div className="grid grid-cols-4 gap-2">
             {capacities.map(cap => (
-              <button
-                key={cap}
-                type="button"
-                onClick={() => setCapacity(cap)}
+              <button key={cap} type="button" onClick={() => setCapacity(cap)}
                 className={`py-2 rounded-xl border-2 text-sm font-medium transition-all cursor-pointer ${
                   capacity === cap
                     ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
                     : 'border-stone-200 dark:border-stone-600 text-stone-500 hover:border-amber-200'
-                }`}
-              >
+                }`}>
                 {cap}
               </button>
             ))}
-            {/* Custom */}
           </div>
         </div>
 
-        <Input
-          label="Nome do Veículo"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder={`Ex: ${type === 'bus' ? 'Ônibus 1' : 'Van A'}`}
-          required
-          hint="Um nome para identificar facilmente este veículo"
-        />
+        <Input label="Nome do Veículo" value={name} onChange={e => setName(e.target.value)}
+          placeholder={`Ex: ${type === 'bus' ? 'Ônibus 1' : 'Van A'}`} required />
 
-        <Input
-          label="Valor da Passagem (R$)"
-          type="number"
-          min="0"
-          step="0.01"
-          value={ticketPrice}
-          onChange={e => setTicketPrice(parseFloat(e.target.value) || 0)}
-          placeholder="0,00"
-          hint="Valor individual por passageiro neste veículo"
-        />
+        <Input label="Valor da Passagem (R$)" type="number" min="0" step="0.01"
+          value={ticketPrice} onChange={e => setTicketPrice(parseFloat(e.target.value) || 0)} placeholder="0,00" />
 
         {!editing && (
           <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl text-xs text-amber-700 dark:text-amber-400">
-            ✨ O sistema irá gerar automaticamente {capacity} assentos numerados para este {formatVehicleType(type).toLowerCase()}.
+            ✨ O sistema irá gerar automaticamente {capacity} assentos numerados.
           </div>
         )}
 

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, Bus, Users, ClipboardList, Search,
-  Building2, CheckCircle2, Shield, UserCog, Settings
+  LayoutDashboard, Bus, Users, ClipboardList,
+  Building2, CheckCircle2, Shield, UserCog, CalendarDays, Settings
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { cn } from '../../lib/utils'
@@ -11,9 +11,9 @@ export function BottomNav() {
 
   const items = isAdminGeneral ? [
     { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },
+    { to: '/events', icon: <CalendarDays className="w-5 h-5" />, label: 'Eventos' },
     { to: '/congregations', icon: <Building2 className="w-5 h-5" />, label: 'Congr.' },
     { to: '/users', icon: <UserCog className="w-5 h-5" />, label: 'Usuários' },
-    { to: '/finalized-lists', icon: <CheckCircle2 className="w-5 h-5" />, label: 'Listas' },
     { to: '/audit', icon: <Shield className="w-5 h-5" />, label: 'Auditoria' },
   ] : [
     { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },

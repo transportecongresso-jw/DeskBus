@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { EventProvider } from './contexts/EventContext'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -17,6 +18,7 @@ import { CongregationDetailPage } from './pages/CongregationDetailPage'
 import { FinalizedListsPage } from './pages/FinalizedListsPage'
 import { AuditPage } from './pages/AuditPage'
 import { UsersPage } from './pages/UsersPage'
+import { EventsPage } from './pages/EventsPage'
 import { PageSpinner } from './components/ui/Spinner'
 
 const queryClient = new QueryClient()
@@ -39,6 +41,7 @@ function AppRoutes() {
       <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="events" element={<ProtectedRoute adminOnly><EventsPage /></ProtectedRoute>} />
         <Route path="congregations" element={<ProtectedRoute adminOnly><CongregationsPage /></ProtectedRoute>} />
         <Route path="congregations/:id" element={<CongregationDetailPage />} />
         <Route path="users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
@@ -61,22 +64,24 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                style: {
-                  borderRadius: '12px',
-                  background: '#1c1917',
-                  color: '#fafaf9',
-                  fontSize: '14px',
-                },
-                success: { iconTheme: { primary: '#fbbf24', secondary: '#1c1917' } },
-                error: { iconTheme: { primary: '#f43f5e', secondary: '#fff' } },
-              }}
-            />
-          </BrowserRouter>
+          <EventProvider>
+            <BrowserRouter>
+              <AppRoutes />
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  style: {
+                    borderRadius: '12px',
+                    background: '#1c1917',
+                    color: '#fafaf9',
+                    fontSize: '14px',
+                  },
+                  success: { iconTheme: { primary: '#fbbf24', secondary: '#1c1917' } },
+                  error: { iconTheme: { primary: '#f43f5e', secondary: '#fff' } },
+                }}
+              />
+            </BrowserRouter>
+          </EventProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

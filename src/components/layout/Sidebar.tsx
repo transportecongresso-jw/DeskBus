@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Bus, Users, Building2, LayoutDashboard, Search,
-  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield
+  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield, CalendarDays
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -18,6 +18,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },
+  { to: '/events', icon: <CalendarDays className="w-5 h-5" />, label: 'Eventos', adminOnly: true },
   { to: '/congregations', icon: <Building2 className="w-5 h-5" />, label: 'Congregações', adminOnly: true },
   { to: '/finalized-lists', icon: <CheckCircle2 className="w-5 h-5" />, label: 'Listas Finalizadas', adminOnly: true },
   { to: '/vehicles', icon: <Bus className="w-5 h-5" />, label: 'Veículos' },

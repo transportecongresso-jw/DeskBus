@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Users, Plus, Pencil, Trash2, Search, Baby, ChevronDown, ChevronUp } from 'lucide-react'
+import { Users, Plus, Pencil, Trash2, Search, Baby, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useEvent } from '../contexts/EventContext'
 import { Passenger, DocumentType, Congregation } from '../types'
 import { logAction } from '../lib/audit'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -25,7 +26,8 @@ const DOC_OPTIONS = [
 
 export function PassengersPage() {
   const { isAdminGeneral, congregationIds, user } = useAuth()
-  const [passengers, setPassengers] = useState<(Passenger & { guardian?: Passenger; congregation?: Congregation })[]>([])
+  const { activeEvent, eventDays } = useEvent()
+  const [passengers, setPassengers] = useState<(Passenger & { guardian?: Passenger; congregation?: Congregation; dayIds?: string[] })[]>([])
   const [congregations, setCongregations] = useState<Congregation[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -33,6 +35,7 @@ export function PassengersPage() {
   const [editing, setEditing] = useState<Passenger | null>(null)
   const [deleting, setDeleting] = useState<Passenger | null>(null)
   const [filterCong, setFilterCong] = useState('')
+  const [filterDay, setFilterDay] = useState('all')
   const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => { loadData() }, [])
@@ -49,9 +52,17 @@ export function PassengersPage() {
     if (congIds.length > 0) pQuery = pQuery.in('congregation_id', congIds)
     const { data } = await pQuery
 
+    const pIds = (data ?? []).map((p: any) => p.id)
+    let passDays: any[] = []
+    if (pIds.length > 0) {
+      const { data: pd } = await supabase.from('passenger_event_days').select('*').in('passenger_id', pIds)
+      passDays = pd ?? []
+    }
+
     const enriched = (data ?? []).map((p: any) => ({
       ...p,
       congregation: congs?.find(c => c.id === p.congregation_id),
+      dayIds: passDays.filter(pd => pd.passenger_id === p.id).map((pd: any) => pd.event_day_id),
     }))
     setPassengers(enriched)
     setLoading(false)
@@ -81,7 +92,8 @@ export function PassengersPage() {
       p.document_number.includes(search) ||
       (p.guardian as any)?.full_name?.toLowerCase().includes(search.toLowerCase())
     const matchCong = !filterCong || p.congregation_id === filterCong
-    return matchSearch && matchCong
+    const matchDay = filterDay === 'all' || (p.dayIds ?? []).includes(filterDay)
+    return matchSearch && matchCong && matchDay
   })
 
   return (
@@ -96,6 +108,22 @@ export function PassengersPage() {
           </Button>
         }
       />
+
+      {/* Day filter tabs */}
+      {activeEvent && eventDays.length > 0 && (
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+          <button onClick={() => setFilterDay('all')}
+            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${filterDay === 'all' ? 'bg-amber-400 text-amber-950' : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700'}`}>
+            Todos os dias
+          </button>
+          {eventDays.map(d => (
+            <button key={d.id} onClick={() => setFilterDay(d.id)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${filterDay === d.id ? 'bg-amber-400 text-amber-950' : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700'}`}>
+              {d.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <Card>
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -146,6 +174,15 @@ export function PassengersPage() {
                     <p className="text-xs text-stone-400">
                       {formatDocumentType(p.document_type)} · {p.document_number}
                     </p>
+                    {activeEvent && (p.dayIds ?? []).length > 0 && (
+                      <div className="flex gap-1 flex-wrap mt-1">
+                        {eventDays.filter(d => (p.dayIds ?? []).includes(d.id)).map(d => (
+                          <span key={d.id} className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full">
+                            <CalendarDays className="w-2.5 h-2.5" />{d.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Button
@@ -242,12 +279,14 @@ interface PassengerFormProps {
 
 function PassengerForm({ open, onClose, editing, congregations, passengers, onSaved }: PassengerFormProps) {
   const { isAdminGeneral, congregationIds, user } = useAuth()
+  const { activeEvent, eventDays } = useEvent()
   const [fullName, setFullName] = useState('')
   const [docType, setDocType] = useState<DocumentType>('cpf')
   const [docNumber, setDocNumber] = useState('')
   const [isMinor, setIsMinor] = useState(false)
   const [guardianId, setGuardianId] = useState('')
   const [congregationId, setCongregationId] = useState('')
+  const [selectedDays, setSelectedDays] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -257,7 +296,19 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
     setIsMinor(editing?.is_minor ?? false)
     setGuardianId(editing?.guardian_id ?? '')
     setCongregationId(editing?.congregation_id ?? (isAdminGeneral ? '' : congregationIds[0] ?? ''))
+    // Load existing day selections for the passenger
+    if (editing) {
+      supabase.from('passenger_event_days').select('event_day_id')
+        .eq('passenger_id', editing.id)
+        .then(({ data }) => setSelectedDays((data ?? []).map((d: any) => d.event_day_id)))
+    } else {
+      setSelectedDays([])
+    }
   }, [editing, open])
+
+  function toggleDay(dayId: string) {
+    setSelectedDays(prev => prev.includes(dayId) ? prev.filter(d => d !== dayId) : [...prev, dayId])
+  }
 
   const adultPassengers = passengers.filter(p => !p.is_minor && p.id !== editing?.id)
 
@@ -274,27 +325,32 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
         congregation_id: congregationId,
       }
 
+      let passengerId: string
       if (editing) {
         const { error } = await supabase.from('passengers').update(payload).eq('id', editing.id)
         if (error) throw error
-        await logAction({
-          congregationId: congregationId,
-          actionType: 'passenger_updated',
-          description: `Dados de "${fullName}" atualizados`,
-          performedBy: user!.id,
-        })
+        passengerId = editing.id
+        await logAction({ congregationId, actionType: 'passenger_updated', description: `Dados de "${fullName}" atualizados`, performedBy: user!.id })
         toast.success('Passageiro atualizado')
       } else {
-        const { error } = await supabase.from('passengers').insert(payload)
+        const { data: newP, error } = await supabase.from('passengers').insert(payload).select().single()
         if (error) throw error
-        await logAction({
-          congregationId: congregationId,
-          actionType: 'passenger_created',
-          description: `Passageiro "${fullName}" cadastrado`,
-          performedBy: user!.id,
-        })
+        passengerId = newP.id
+        await logAction({ congregationId, actionType: 'passenger_created', description: `Passageiro "${fullName}" cadastrado`, performedBy: user!.id })
         toast.success('Passageiro cadastrado')
       }
+
+      // Sync event day participation
+      if (activeEvent && eventDays.length > 0) {
+        await supabase.from('passenger_event_days').delete().eq('passenger_id', passengerId)
+          .in('event_day_id', eventDays.map(d => d.id))
+        if (selectedDays.length > 0) {
+          await supabase.from('passenger_event_days').insert(
+            selectedDays.map(dayId => ({ passenger_id: passengerId, event_day_id: dayId }))
+          )
+        }
+      }
+
       onSaved()
     } catch {
       toast.error('Erro ao salvar passageiro')
@@ -372,6 +428,23 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
                 ⚠️ Nenhum passageiro adulto cadastrado ainda. Cadastre o responsável primeiro.
               </p>
             )}
+          </div>
+        )}
+
+        {activeEvent && eventDays.length > 0 && (
+          <div className="p-3 bg-stone-50 dark:bg-stone-800 rounded-xl">
+            <p className="text-xs font-medium text-stone-600 dark:text-stone-400 mb-2 flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5" />Dias que vai participar — {activeEvent.name}
+            </p>
+            <div className="flex flex-col gap-2">
+              {eventDays.map(d => (
+                <label key={d.id} className="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked={selectedDays.includes(d.id)} onChange={() => toggleDay(d.id)}
+                    className="w-4 h-4 accent-amber-400" />
+                  <span className="text-sm text-stone-700 dark:text-stone-200">{d.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
         )}
 
