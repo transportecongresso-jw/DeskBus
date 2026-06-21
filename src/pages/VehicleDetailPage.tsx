@@ -39,6 +39,13 @@ export function VehicleDetailPage() {
   const [pendingChange, setPendingChange] = useState<(() => Promise<void>) | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [showCancelModal, setShowCancelModal] = useState(false)
+  const [moveConflict, setMoveConflict] = useState<{
+    passengerId: string
+    passengerName: string
+    oldSeatNumber: number
+    oldAssignmentId: string
+    oldPaymentStatus: string
+  } | null>(null)
 
   useEffect(() => {
     if (id) loadVehicle(id)
@@ -115,6 +122,25 @@ export function VehicleDetailPage() {
 
   async function assignPassenger(passengerId: string) {
     if (!selectedSeat || !vehicle) return
+
+    // Verificar se o passageiro já tem assento ativo neste veículo
+    const existingAssignment = seats
+      .filter(s => s.id !== selectedSeat.id)
+      .find(s => s.assignment?.passenger_id === passengerId && s.assignment?.status === 'active')
+
+    if (existingAssignment) {
+      const passengerName = existingAssignment.assignment!.passenger?.full_name ?? 'Passageiro'
+      setShowSeatModal(false)
+      setMoveConflict({
+        passengerId,
+        passengerName,
+        oldSeatNumber: existingAssignment.seat_number,
+        oldAssignmentId: existingAssignment.assignment!.id,
+        oldPaymentStatus: existingAssignment.assignment!.payment_status,
+      })
+      return
+    }
+
     await executeChange(async () => {
       const { error } = await supabase.from('seat_assignments').insert({
         seat_id: selectedSeat.id,
@@ -128,6 +154,33 @@ export function VehicleDetailPage() {
       await logAudit(`Passageiro atribuído ao assento ${selectedSeat.seat_number}`)
       toast.success('Passageiro atribuído!')
       setShowSeatModal(false)
+      loadVehicle(vehicle.id)
+    })
+  }
+
+  async function confirmMovePassenger() {
+    if (!moveConflict || !selectedSeat || !vehicle) return
+    await executeChange(async () => {
+      // Cancelar atribuição antiga
+      await supabase.from('seat_assignments').update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: `Transferido para assento ${selectedSeat.seat_number}`,
+      }).eq('id', moveConflict.oldAssignmentId)
+
+      // Criar nova atribuição mantendo status de pagamento
+      const { error } = await supabase.from('seat_assignments').insert({
+        seat_id: selectedSeat.id,
+        passenger_id: moveConflict.passengerId,
+        vehicle_id: vehicle.id,
+        status: 'active',
+        payment_status: moveConflict.oldPaymentStatus,
+        boarding_status: 'pending',
+      })
+      if (error) { toast.error('Erro ao mover passageiro'); return }
+      await logAudit(`${moveConflict.passengerName} transferido do assento ${moveConflict.oldSeatNumber} para ${selectedSeat.seat_number}`)
+      toast.success(`${moveConflict.passengerName} movido para assento ${selectedSeat.seat_number}`)
+      setMoveConflict(null)
       loadVehicle(vehicle.id)
     })
   }
@@ -472,6 +525,19 @@ export function VehicleDetailPage() {
           onSubstitute={substitutePassenger}
         />
       )}
+
+      {/* Modal de conflito: passageiro já tem assento neste veículo */}
+      <ConfirmDialog
+        open={!!moveConflict}
+        onClose={() => setMoveConflict(null)}
+        onConfirm={confirmMovePassenger}
+        variant="warning"
+        title="Passageiro Já Possui Assento"
+        message={moveConflict
+          ? `${moveConflict.passengerName} já está no assento ${moveConflict.oldSeatNumber}. Deseja transferi-lo para o assento ${selectedSeat?.seat_number}? O assento ${moveConflict.oldSeatNumber} ficará vazio.`
+          : ''}
+        confirmLabel="Transferir de Assento"
+      />
 
       {/* Aviso de excesso de alterações após fechamento */}
       <ConfirmDialog
