@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Receipt, Upload, Check, Eye, Filter, Plus, X, DollarSign, FileText, Download } from 'lucide-react'
+import { Receipt, Upload, Check, Eye, Filter, Plus, X, DollarSign, FileText, Download, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useEvent } from '../contexts/EventContext'
@@ -81,6 +81,19 @@ export function InvoicesPage() {
     }))
     setInvoices(enriched)
     setLoading(false)
+  }
+
+  async function deleteInvoice(inv: InvoiceWithContext) {
+    if (!confirm(`Excluir esta nota fiscal de ${formatCurrency(Number(inv.amount))}? Esta ação não pode ser desfeita.`)) return
+    // Deletar arquivo do Storage se existir
+    if (inv.file_url) {
+      const path = inv.file_url.split('/invoices/')[1]
+      if (path) await supabase.storage.from('invoices').remove([path])
+    }
+    const { error } = await supabase.from('invoices').delete().eq('id', inv.id)
+    if (error) { toast.error('Erro ao excluir nota'); return }
+    toast.success('Nota fiscal excluída')
+    setInvoices(prev => prev.filter(i => i.id !== inv.id))
   }
 
   async function markReviewed(invoiceId: string) {
@@ -208,6 +221,11 @@ export function InvoicesPage() {
                         Marcar Revisada
                       </Button>
                     )}
+                    <Button variant="ghost" size="sm" icon={<Trash2 className="w-4 h-4" />}
+                      className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                      onClick={() => deleteInvoice(inv)}>
+                      Excluir
+                    </Button>
                     {inv.file_name && (
                       <span className="text-xs text-stone-400 self-center">{inv.file_name}</span>
                     )}
