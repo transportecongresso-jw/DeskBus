@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bus, ArrowLeft, Send, CheckCircle2 } from 'lucide-react'
+import { Bus, ArrowLeft, Send, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -12,12 +12,23 @@ export function RequestAccessPage() {
   const [email, setEmail] = useState('')
   const [congregationName, setCongregationName] = useState('')
   const [phone, setPhone] = useState('')
-  const [notes, setNotes] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (password.length < 8) {
+      toast.error('A senha deve ter no mínimo 8 caracteres')
+      return
+    }
+    if (password !== confirmPassword) {
+      toast.error('As senhas não coincidem')
+      return
+    }
     setLoading(true)
     try {
       const { error } = await supabase.from('access_requests').insert({
@@ -25,7 +36,7 @@ export function RequestAccessPage() {
         email: email.trim().toLowerCase(),
         congregation_name: congregationName.trim(),
         phone: phone.trim() || null,
-        notes: notes.trim() || null,
+        password_temp: password,
         status: 'pending',
       })
 
@@ -73,18 +84,16 @@ export function RequestAccessPage() {
               <div className="text-center">
                 <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100">Solicitação Enviada!</h2>
                 <p className="text-sm text-stone-500 mt-2 leading-relaxed">
-                  Sua solicitação foi recebida. O Administrador Geral irá analisá-la em breve.
-                </p>
-                <p className="text-sm text-stone-500 mt-2 leading-relaxed">
-                  Você receberá um e-mail de convite quando seu acesso for aprovado.
+                  Sua solicitação foi recebida e está aguardando aprovação do Administrador Geral.
                 </p>
               </div>
               <div className="w-full p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-700 text-center">
-                <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">Solicita­ção registrada para:</p>
-                <p className="text-sm font-bold text-amber-800 dark:text-amber-300 mt-0.5">{email}</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 font-medium mb-1">Quando aprovado, acesse com:</p>
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">{email}</p>
+                <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">e a senha que você definiu</p>
               </div>
               <Button variant="outline" onClick={() => navigate('/login')} icon={<ArrowLeft className="w-4 h-4" />} className="w-full">
-                Voltar ao Login
+                Ir para o Login
               </Button>
             </div>
           ) : (
@@ -99,6 +108,13 @@ export function RequestAccessPage() {
                   autoComplete="name"
                 />
                 <Input
+                  label="Congregação *"
+                  value={congregationName}
+                  onChange={e => setCongregationName(e.target.value)}
+                  placeholder="Nome da sua congregação"
+                  required
+                />
+                <Input
                   label="E-mail *"
                   type="email"
                   value={email}
@@ -108,13 +124,6 @@ export function RequestAccessPage() {
                   autoComplete="email"
                 />
                 <Input
-                  label="Congregação *"
-                  value={congregationName}
-                  onChange={e => setCongregationName(e.target.value)}
-                  placeholder="Nome da sua congregação"
-                  required
-                />
-                <Input
                   label="Telefone (opcional)"
                   type="tel"
                   value={phone}
@@ -122,18 +131,46 @@ export function RequestAccessPage() {
                   placeholder="(00) 00000-0000"
                   autoComplete="tel"
                 />
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Observações (opcional)</label>
-                  <textarea
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    rows={3}
-                    placeholder="Informações adicionais que ajudem na análise..."
-                    className="w-full px-4 py-3 rounded-xl border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
+
+                <div className="pt-1 border-t border-stone-100 dark:border-stone-700">
+                  <p className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-3">
+                    Defina sua senha de acesso
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <Input
+                      label="Senha *"
+                      type={showPw ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Mínimo 8 caracteres"
+                      required
+                      hint={password.length > 0 && password.length < 8 ? 'Mínimo 8 caracteres' : undefined}
+                      autoComplete="new-password"
+                      rightElement={
+                        <button type="button" onClick={() => setShowPw(v => !v)} className="text-stone-400 hover:text-stone-600 transition-colors">
+                          {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      }
+                    />
+                    <Input
+                      label="Confirmar Senha *"
+                      type={showConfirm ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      placeholder="Repita a senha"
+                      required
+                      hint={confirmPassword.length > 0 && confirmPassword !== password ? 'As senhas não coincidem' : undefined}
+                      autoComplete="new-password"
+                      rightElement={
+                        <button type="button" onClick={() => setShowConfirm(v => !v)} className="text-stone-400 hover:text-stone-600 transition-colors">
+                          {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      }
+                    />
+                  </div>
                 </div>
 
-                <Button type="submit" loading={loading} size="lg" className="w-full mt-2" icon={<Send className="w-4 h-4" />}>
+                <Button type="submit" loading={loading} size="lg" className="w-full mt-1" icon={<Send className="w-4 h-4" />}>
                   Enviar Solicitação
                 </Button>
               </form>

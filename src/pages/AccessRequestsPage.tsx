@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ClipboardList, Check, X, Clock, Building2, Phone, Mail, MessageSquare, RefreshCw } from 'lucide-react'
+import { ClipboardList, Check, X, Clock, Building2, Phone, Mail, RefreshCw, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { Congregation } from '../types'
@@ -31,6 +31,7 @@ interface AccessRequest {
   congregation_name: string
   phone: string | null
   notes: string | null
+  password_temp: string | null
   status: 'pending' | 'approved' | 'rejected'
   rejection_reason: string | null
   reviewed_by: string | null
@@ -49,6 +50,7 @@ export function AccessRequestsPage() {
   const [approving, setApproving] = useState(false)
   const [rejecting, setRejecting] = useState(false)
   const [selectedCongId, setSelectedCongId] = useState('')
+  const [selectedRole, setSelectedRole] = useState('admin_congregation')
   const [rejectionReason, setRejectionReason] = useState('')
 
   useEffect(() => { loadData() }, [])
@@ -66,30 +68,38 @@ export function AccessRequestsPage() {
 
   async function handleApprove() {
     if (!approveModal || !selectedCongId) {
-      toast.error('Selecione a congregação para vincular o usuário')
+      toast.error('Selecione a congregação')
+      return
+    }
+    if (!SERVICE_ROLE_KEY) {
+      toast.error('Chave de serviço não configurada. Verifique as variáveis de ambiente.')
       return
     }
     setApproving(true)
     try {
-      // Invite user via Supabase Auth Admin API — they set their own password
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/invite`, {
+      // Create user in Supabase Auth with the password they set — no email confirmation
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
         method: 'POST',
         headers: adminHeaders(),
         body: JSON.stringify({
           email: approveModal.email,
-          data: { full_name: approveModal.full_name },
+          password: approveModal.password_temp,
+          email_confirm: true,
+          user_metadata: { full_name: approveModal.full_name },
         }),
       })
       const userData = await res.json()
-      if (!res.ok) throw new Error(userData.message ?? 'Erro ao convidar usuário')
+      if (!res.ok) {
+        throw new Error(userData.message ?? 'Erro ao criar usuário')
+      }
 
       const userId = userData.id
 
-      // Update profile
+      // Update profile: set name, phone, role
       await supabase.from('profiles').update({
         full_name: approveModal.full_name,
         phone: approveModal.phone || null,
-        role: 'admin_congregation',
+        role: selectedRole,
       }).eq('id', userId)
 
       // Link to congregation
@@ -98,9 +108,10 @@ export function AccessRequestsPage() {
         congregation_id: selectedCongId,
       })
 
-      // Mark request as approved
+      // Mark request approved and clear password
       await supabase.from('access_requests').update({
         status: 'approved',
+        password_temp: null,
         reviewed_by: user!.id,
         reviewed_at: new Date().toISOString(),
       }).eq('id', approveModal.id)
@@ -108,13 +119,14 @@ export function AccessRequestsPage() {
       await logAction({
         congregationId: selectedCongId,
         actionType: 'access_request_approved',
-        description: `Solicitação de "${approveModal.full_name}" (${approveModal.email}) aprovada`,
+        description: `Solicitação de "${approveModal.full_name}" (${approveModal.email}) aprovada como ${selectedRole === 'admin_general' ? 'SuperAdmin' : 'Admin. Congregação'}`,
         performedBy: user!.id,
       })
 
-      toast.success(`Convite enviado para ${approveModal.email}`)
+      toast.success(`Acesso criado para ${approveModal.email}`)
       setApproveModal(null)
       setSelectedCongId('')
+      setSelectedRole('admin_congregation')
       loadData()
     } catch (err: any) {
       toast.error(err.message ?? 'Erro ao aprovar solicitação')
@@ -130,6 +142,7 @@ export function AccessRequestsPage() {
       await supabase.from('access_requests').update({
         status: 'rejected',
         rejection_reason: rejectionReason.trim() || null,
+        password_temp: null,
         reviewed_by: user!.id,
         reviewed_at: new Date().toISOString(),
       }).eq('id', rejectModal.id)
@@ -210,11 +223,11 @@ export function AccessRequestsPage() {
               <div key={req.id} className="py-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
                       <p className="font-semibold text-stone-800 dark:text-stone-100">{req.full_name}</p>
                       {statusBadge(req.status)}
                     </div>
-                    <div className="space-y-1 mt-2">
+                    <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
                         <Mail className="w-3.5 h-3.5 flex-shrink-0" />
                         <span className="truncate">{req.email}</span>
@@ -227,12 +240,6 @@ export function AccessRequestsPage() {
                         <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
                           <Phone className="w-3.5 h-3.5 flex-shrink-0" />
                           <span>{req.phone}</span>
-                        </div>
-                      )}
-                      {req.notes && (
-                        <div className="flex items-start gap-2 text-sm text-stone-500 dark:text-stone-400">
-                          <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                          <span className="italic">"{req.notes}"</span>
                         </div>
                       )}
                       {req.rejection_reason && (
@@ -252,7 +259,7 @@ export function AccessRequestsPage() {
                       <Button
                         size="sm"
                         icon={<Check className="w-4 h-4" />}
-                        onClick={() => { setApproveModal(req); setSelectedCongId('') }}
+                        onClick={() => { setApproveModal(req); setSelectedCongId(''); setSelectedRole('admin_congregation') }}
                       >
                         Aprovar
                       </Button>
@@ -284,8 +291,14 @@ export function AccessRequestsPage() {
             <Button variant="outline" onClick={() => { setApproveModal(null); setSelectedCongId('') }} className="flex-1">
               Cancelar
             </Button>
-            <Button onClick={handleApprove} loading={approving} disabled={!selectedCongId} className="flex-1" icon={<Check className="w-4 h-4" />}>
-              Aprovar e Convidar
+            <Button
+              onClick={handleApprove}
+              loading={approving}
+              disabled={!selectedCongId}
+              className="flex-1"
+              icon={<ShieldCheck className="w-4 h-4" />}
+            >
+              Aprovar
             </Button>
           </div>
         }
@@ -295,7 +308,7 @@ export function AccessRequestsPage() {
             <div className="p-4 bg-stone-50 dark:bg-stone-700/50 rounded-xl">
               <p className="text-sm font-semibold text-stone-800 dark:text-stone-100">{approveModal.full_name}</p>
               <p className="text-xs text-stone-500 mt-0.5">{approveModal.email}</p>
-              <p className="text-xs text-stone-400 mt-0.5">Solicitou: {approveModal.congregation_name}</p>
+              <p className="text-xs text-stone-400 mt-0.5">Congregação solicitada: {approveModal.congregation_name}</p>
             </div>
 
             <Select
@@ -308,9 +321,18 @@ export function AccessRequestsPage() {
               ]}
             />
 
-            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-700">
-              <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-                Ao aprovar, um e-mail de convite será enviado automaticamente para <strong>{approveModal.email}</strong>. O usuário definirá sua própria senha ao aceitar o convite.
+            <Select
+              label="Perfil de Acesso"
+              value={selectedRole}
+              onChange={e => setSelectedRole(e.target.value)}
+              options={[
+                { value: 'admin_congregation', label: 'Administrador de Congregação' },
+              ]}
+            />
+
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-700">
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                O usuário será criado imediatamente. Poderá acessar o sistema com o e-mail e a senha que ele mesmo definiu na solicitação.
               </p>
             </div>
           </div>
