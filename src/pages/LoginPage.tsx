@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bus, Eye, EyeOff } from 'lucide-react'
+import { Bus, Eye, EyeOff, UserPlus } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -82,9 +82,17 @@ export function LoginPage() {
             </Button>
           </form>
 
-          <p className="text-center text-xs text-stone-400 mt-6">
-            Em caso de problemas com acesso, fale com o Administrador Geral.
-          </p>
+          <div className="mt-6 pt-5 border-t border-stone-100 dark:border-stone-700">
+            <p className="text-center text-xs text-stone-400 mb-3">Não tem acesso ainda?</p>
+            <button
+              type="button"
+              onClick={() => navigate('/request-access')}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-stone-200 dark:border-stone-600 text-stone-500 dark:text-stone-400 hover:border-amber-400 hover:text-amber-600 dark:hover:text-amber-400 transition-all text-sm font-medium"
+            >
+              <UserPlus className="w-4 h-4" />
+              Solicitar Acesso
+            </button>
+          </div>
         </div>
 
         <p className="text-center text-xs text-stone-400 mt-4">

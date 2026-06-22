@@ -1,11 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Bus, Users, Building2, LayoutDashboard, Search,
-  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield, CalendarDays, Star, Receipt, Truck, UserCog, BarChart3
+  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield, CalendarDays, Star, Receipt, Truck, UserCog, BarChart3, Bell
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { EventSelector } from './EventSelector'
+import { usePendingRequests } from '../../hooks/usePendingRequests'
 import { cn } from '../../lib/utils'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
@@ -28,6 +29,7 @@ const navItems: NavItem[] = [
   { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Disponibilidade' },
   { to: '/search', icon: <Search className="w-5 h-5" />, label: 'Pesquisa' },
   { to: '/users', icon: <UserCog className="w-5 h-5" />, label: 'Usuários', adminOnly: true },
+  { to: '/access-requests', icon: <Bell className="w-5 h-5" />, label: 'Solicitações', adminOnly: true },
   { to: '/transport-companies', icon: <Truck className="w-5 h-5" />, label: 'Empresas', adminOnly: true },
   { to: '/ratings', icon: <Star className="w-5 h-5" />, label: 'Avaliações' },
   { to: '/invoices', icon: <Receipt className="w-5 h-5" />, label: 'Notas Fiscais' },
@@ -40,6 +42,7 @@ export function Sidebar() {
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
+  const pendingRequests = usePendingRequests()
 
   async function handleSignOut() {
     await signOut()
@@ -73,23 +76,42 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto">
-        {filteredNav.map(item => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            title={collapsed ? item.label : undefined}
-            className={({ isActive }) => cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
-              collapsed && 'justify-center px-2',
-              isActive
-                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-800 dark:hover:text-stone-200'
-            )}
-          >
-            <span className="flex-shrink-0">{item.icon}</span>
-            {!collapsed && item.label}
-          </NavLink>
-        ))}
+        {filteredNav.map(item => {
+          const isPendingBell = item.to === '/access-requests' && pendingRequests > 0
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              title={collapsed ? item.label : undefined}
+              className={({ isActive }) => cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+                collapsed && 'justify-center px-2',
+                isActive
+                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                  : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-800 dark:hover:text-stone-200'
+              )}
+            >
+              <span className="flex-shrink-0 relative">
+                {item.icon}
+                {isPendingBell && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {pendingRequests > 9 ? '9+' : pendingRequests}
+                  </span>
+                )}
+              </span>
+              {!collapsed && (
+                <span className="flex-1 flex items-center justify-between">
+                  {item.label}
+                  {isPendingBell && (
+                    <span className="ml-2 px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full">
+                      {pendingRequests}
+                    </span>
+                  )}
+                </span>
+              )}
+            </NavLink>
+          )
+        })}
       </nav>
 
       {/* Footer */}

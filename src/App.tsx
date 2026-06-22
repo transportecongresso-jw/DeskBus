@@ -23,6 +23,8 @@ import { TransportCompaniesPage } from './pages/TransportCompaniesPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 import { AvailabilityPage } from './pages/AvailabilityPage'
+import { RequestAccessPage } from './pages/RequestAccessPage'
+import { AccessRequestsPage } from './pages/AccessRequestsPage'
 import { PageSpinner } from './components/ui/Spinner'
 
 const queryClient = new QueryClient()
@@ -42,6 +44,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      <Route path="/request-access" element={user ? <Navigate to="/dashboard" replace /> : <RequestAccessPage />} />
       <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
@@ -49,6 +52,7 @@ function AppRoutes() {
         <Route path="congregations" element={<ProtectedRoute adminOnly><CongregationsPage /></ProtectedRoute>} />
         <Route path="congregations/:id" element={<CongregationDetailPage />} />
         <Route path="users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
+        <Route path="access-requests" element={<ProtectedRoute adminOnly><AccessRequestsPage /></ProtectedRoute>} />
         <Route path="finalized-lists" element={<ProtectedRoute adminOnly><FinalizedListsPage /></ProtectedRoute>} />
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="vehicles/:id" element={<VehicleDetailPage />} />
