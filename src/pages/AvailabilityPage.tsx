@@ -69,6 +69,7 @@ export function AvailabilityPage() {
   async function loadAll() {
     setLoading(true)
     try {
+      // ── Summary tab: own congregation(s) — restricted by RLS ──
       const { data: allCongs } = await supabase.from('congregations').select('*').order('name')
       if (!allCongs || allCongs.length === 0) { setSummaryStats([]); setCrossData([]); return }
 
@@ -76,25 +77,24 @@ export function AvailabilityPage() {
         .select('id, name, capacity, congregation_id, event_day_id')
         .eq('event_id', selectedEvent!.id)
       if (filterDay !== 'all') vQuery = vQuery.eq('event_day_id', filterDay)
-      const { data: vehicles } = await vQuery
+      const { data: ownVehicles } = await vQuery
 
-      const vehicleIds = (vehicles ?? []).map(v => v.id)
-      const { data: assignments } = vehicleIds.length > 0
+      const ownVehicleIds = (ownVehicles ?? []).map(v => v.id)
+      const { data: ownAssignments } = ownVehicleIds.length > 0
         ? await supabase.from('seat_assignments').select('vehicle_id')
-            .eq('status', 'active').in('vehicle_id', vehicleIds)
+            .eq('status', 'active').in('vehicle_id', ownVehicleIds)
         : { data: [] }
 
-      const assignMap = new Map<string, number>()
-      for (const a of assignments ?? []) {
-        assignMap.set(a.vehicle_id, (assignMap.get(a.vehicle_id) ?? 0) + 1)
+      const ownAssignMap = new Map<string, number>()
+      for (const a of ownAssignments ?? []) {
+        ownAssignMap.set(a.vehicle_id, (ownAssignMap.get(a.vehicle_id) ?? 0) + 1)
       }
 
-      // ── Summary stats (existing "all-scope" view, admins see all) ──
       const congScope = isAdminGeneral ? allCongs : allCongs.filter(c => congregationIds.includes(c.id))
       const summary: CongregationStats[] = congScope.map(cong => {
-        const cv = (vehicles ?? []).filter(v => v.congregation_id === cong.id)
+        const cv = (ownVehicles ?? []).filter(v => v.congregation_id === cong.id)
         const totalSeats = cv.reduce((s, v) => s + v.capacity, 0)
-        const assigned = cv.reduce((s, v) => s + (assignMap.get(v.id) ?? 0), 0)
+        const assigned = cv.reduce((s, v) => s + (ownAssignMap.get(v.id) ?? 0), 0)
         return {
           congregation: cong,
           vehicleCount: cv.length,
@@ -106,55 +106,81 @@ export function AvailabilityPage() {
       }).filter(s => s.vehicleCount > 0)
       setSummaryStats(summary)
 
-      // ── Cross-congregation view ──
-      // For congregation admins: exclude their own congregations
-      // For SuperAdmin: show all congregations
+      // ── Cross-congregation view — uses SECURITY DEFINER RPC to bypass RLS ──
+      // This returns all vehicles/congregations without exposing sensitive data.
+      const { data: rpcRows, error: rpcError } = await supabase
+        .rpc('get_event_availability', { p_event_id: selectedEvent!.id })
+
+      if (rpcError) {
+        console.error('get_event_availability RPC error:', rpcError)
+        setCrossData([])
+        return
+      }
+
+      const rows = (rpcRows ?? []) as {
+        vehicle_id: string; vehicle_name: string
+        congregation_id: string; congregation_name: string; congregation_city: string | null
+        event_day_id: string | null; capacity: number; assigned_count: number
+      }[]
+
+      // Apply day filter client-side on the RPC results
+      const filteredRows = filterDay === 'all' ? rows : rows.filter(r => r.event_day_id === filterDay)
+
+      // Exclude own congregations for non-admins
       const excludeIds = isAdminGeneral ? [] : congregationIds
-      const otherCongs = allCongs.filter(c => !excludeIds.includes(c.id))
+      const relevantRows = filteredRows.filter(r => !excludeIds.includes(r.congregation_id))
 
       const relevantEventDays = eventDays
         .filter(d => d.event_id === selectedEvent!.id)
         .sort((a, b) => a.day_order - b.day_order)
 
-      const vehicleRows: VehicleRow[] = (vehicles ?? []).map(v => ({
-        ...v,
-        assigned: assignMap.get(v.id) ?? 0,
+      // Build per-congregation structure
+      const congMap = new Map<string, CongAvailability>()
+      for (const row of relevantRows) {
+        if (!congMap.has(row.congregation_id)) {
+          congMap.set(row.congregation_id, {
+            congregationId: row.congregation_id,
+            congregationName: row.congregation_name,
+            city: row.congregation_city,
+            totalAvailable: 0,
+            days: [],
+          })
+        }
+        const cong = congMap.get(row.congregation_id)!
+        const vehicle: VehicleRow = {
+          id: row.vehicle_id,
+          name: row.vehicle_name,
+          capacity: row.capacity,
+          congregation_id: row.congregation_id,
+          event_day_id: row.event_day_id,
+          assigned: Number(row.assigned_count),
+        }
+        const avail = Math.max(0, vehicle.capacity - vehicle.assigned)
+        cong.totalAvailable += avail
+
+        // Find or create the day group
+        const dayId = row.event_day_id ?? 'none'
+        const dayLabel = row.event_day_id
+          ? (relevantEventDays.find(d => d.id === row.event_day_id)?.label ?? 'Sem dia definido')
+          : (relevantEventDays.length > 0 ? 'Sem dia definido' : 'Todos os dias')
+        const dayOrder = relevantEventDays.find(d => d.id === row.event_day_id)?.day_order ?? 999
+
+        let dayGroup = cong.days.find(d => d.dayId === dayId)
+        if (!dayGroup) {
+          dayGroup = { dayId, dayLabel, dayOrder, vehicles: [] }
+          cong.days.push(dayGroup)
+        }
+        dayGroup.vehicles.push(vehicle)
+      }
+
+      // Sort days within each congregation
+      const cross = [...congMap.values()].map(c => ({
+        ...c,
+        days: c.days.sort((a, b) => a.dayOrder - b.dayOrder),
       }))
 
-      const cross: CongAvailability[] = otherCongs.map(cong => {
-        const congVehicles = vehicleRows.filter(v => v.congregation_id === cong.id)
-
-        // Group by day — vehicles without event_day_id go into a general group
-        const days: DayGroup[] = []
-
-        if (relevantEventDays.length > 0) {
-          // Vehicles assigned to a specific day
-          for (const day of relevantEventDays) {
-            const veh = congVehicles.filter(v => v.event_day_id === day.id)
-            if (veh.length > 0) {
-              days.push({ dayId: day.id, dayLabel: day.label, dayOrder: day.day_order, vehicles: veh })
-            }
-          }
-          // Vehicles with no day assigned — show under a generic group
-          const noDayVehicles = congVehicles.filter(v => !v.event_day_id)
-          if (noDayVehicles.length > 0) {
-            days.push({ dayId: 'none', dayLabel: 'Sem dia definido', dayOrder: 999, vehicles: noDayVehicles })
-          }
-        } else {
-          // No event days at all — show all vehicles flat
-          if (congVehicles.length > 0) {
-            days.push({ dayId: 'none', dayLabel: 'Todos os dias', dayOrder: 0, vehicles: congVehicles })
-          }
-        }
-
-        const totalAvailable = congVehicles.reduce((s, v) =>
-          s + Math.max(0, v.capacity - v.assigned), 0)
-
-        return { congregationId: cong.id, congregationName: cong.name, city: cong.city, totalAvailable, days }
-      }).filter(c => c.days.length > 0)
-
-      // Sort: congregations with available seats first
-      cross.sort((a, b) => b.totalAvailable - a.totalAvailable)
+      // Sort: congregations with available seats first, then alphabetically
+      cross.sort((a, b) => b.totalAvailable - a.totalAvailable || a.congregationName.localeCompare(b.congregationName))
       setCrossData(cross)
     } finally {
       setLoading(false)
