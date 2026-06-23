@@ -124,28 +124,26 @@ export function AvailabilityPage() {
       const cross: CongAvailability[] = otherCongs.map(cong => {
         const congVehicles = vehicleRows.filter(v => v.congregation_id === cong.id)
 
-        // Group by day
-        let days: DayGroup[] = []
+        // Group by day — vehicles without event_day_id go into a general group
+        const days: DayGroup[] = []
+
         if (relevantEventDays.length > 0) {
-          days = relevantEventDays.map(day => ({
-            dayId: day.id,
-            dayLabel: day.label,
-            dayOrder: day.day_order,
-            vehicles: congVehicles.filter(v =>
-              filterDay === 'all'
-                ? v.event_day_id === day.id
-                : v.event_day_id === filterDay && v.event_day_id === day.id
-            ),
-          })).filter(d => d.vehicles.length > 0)
+          // Vehicles assigned to a specific day
+          for (const day of relevantEventDays) {
+            const veh = congVehicles.filter(v => v.event_day_id === day.id)
+            if (veh.length > 0) {
+              days.push({ dayId: day.id, dayLabel: day.label, dayOrder: day.day_order, vehicles: veh })
+            }
+          }
+          // Vehicles with no day assigned — show under a generic group
+          const noDayVehicles = congVehicles.filter(v => !v.event_day_id)
+          if (noDayVehicles.length > 0) {
+            days.push({ dayId: 'none', dayLabel: 'Sem dia definido', dayOrder: 999, vehicles: noDayVehicles })
+          }
         } else {
-          // No event days configured — show all vehicles flat
+          // No event days at all — show all vehicles flat
           if (congVehicles.length > 0) {
-            days = [{
-              dayId: 'none',
-              dayLabel: 'Todos os dias',
-              dayOrder: 0,
-              vehicles: congVehicles,
-            }]
+            days.push({ dayId: 'none', dayLabel: 'Todos os dias', dayOrder: 0, vehicles: congVehicles })
           }
         }
 
