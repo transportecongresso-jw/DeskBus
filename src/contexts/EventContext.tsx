@@ -25,7 +25,29 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [tick, setTick] = useState(0)
 
-  useEffect(() => { loadEvents() }, [tick])
+  // Fire loadEvents() on mount AND whenever auth state changes.
+  // This fixes the race condition where loadEvents() runs before the Supabase
+  // client has restored the session from localStorage, causing RLS to block
+  // the events query and leaving selectedEvent as null until F5.
+  useEffect(() => {
+    loadEvents()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        loadEvents()
+      }
+      if (event === 'SIGNED_OUT') {
+        setEvents([])
+        setEventDays([])
+        setSelectedEventIdState(null)
+        localStorage.removeItem(STORAGE_KEY)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => { if (tick > 0) loadEvents() }, [tick])
 
   async function loadEvents() {
     setLoading(true)
