@@ -15,6 +15,7 @@ interface AssignmentWithPassenger {
     document_type: string
     document_number: string
     is_minor: boolean
+    passenger_type?: string
     guardian?: {
       full_name: string
       document_type: string
@@ -32,8 +33,10 @@ export async function exportToExcel(vehicle: Vehicle, assignments: AssignmentWit
       'Nome do Passageiro': a.passenger?.full_name ?? '',
       'Tipo de Documento': formatDocumentType(a.passenger?.document_type as any ?? 'cpf'),
       'Número do Documento': a.passenger?.document_number ?? '',
-      'Menor de Idade': a.passenger?.is_minor ? 'Sim' : 'Não',
-      'Responsável': a.passenger?.guardian?.full_name ?? '',
+      'Menor de Idade': a.passenger?.passenger_type === 'lap_child'
+        ? 'Sim (Criança de Colo)'
+        : a.passenger?.is_minor ? 'Sim' : 'Não',
+      'Responsável': a.passenger?.guardian?.full_name || '—',
       'Status Pagamento': a.payment_status === 'paid' ? 'Pago' : 'Pendente',
     }))
 
@@ -71,8 +74,10 @@ export async function exportToPDF(vehicle: Vehicle, seats: SeatWithAssignment[])
       i + 1, s.seat_number,
       s.assignment?.passenger?.full_name ?? '',
       `${formatDocumentType(s.assignment?.passenger?.document_type as any ?? 'cpf')}: ${s.assignment?.passenger?.document_number ?? ''}`,
-      s.assignment?.passenger?.is_minor ? 'Sim' : 'Não',
-      s.assignment?.passenger?.guardian?.full_name ?? '-',
+      s.assignment?.passenger?.passenger_type === 'lap_child'
+        ? 'Colo'
+        : s.assignment?.passenger?.is_minor ? 'Sim' : 'Não',
+      s.assignment?.passenger?.guardian?.full_name || '—',
       '☐',
     ]),
     headStyles: { fillColor: [251, 191, 36], textColor: [120, 53, 15], fontStyle: 'bold', fontSize: 8 },
@@ -91,6 +96,7 @@ export interface ExportPassengerRow {
   documentType: string
   documentNumber: string
   isMinor: boolean
+  passengerType?: string
   guardianName: string
   vehicleName: string
   seatNumber: number | null
@@ -119,7 +125,9 @@ export async function exportCongregationToExcel(
     const data = passengers.map(p => ({
       'Nome': p.name,
       'Documento': `${formatDocumentType(p.documentType as any)}: ${p.documentNumber}`,
-      'Menor de Idade': p.isMinor ? 'Sim' : 'Não',
+      'Menor de Idade': p.passengerType === 'lap_child'
+        ? 'Sim (Criança de Colo)'
+        : p.isMinor ? 'Sim' : 'Não',
       'Responsável': p.guardianName || '—',
       'Veículo': p.vehicleName || '—',
       'Assento': p.seatNumber ?? '—',
@@ -226,7 +234,9 @@ export async function exportCongregationToPDF(
         i + 1,
         r.name,
         `${formatDocumentType(r.documentType as any)}: ${r.documentNumber}`,
-        r.isMinor ? 'Sim' : 'Não',
+        r.passengerType === 'lap_child'
+          ? 'Colo'
+          : r.isMinor ? 'Sim' : 'Não',
         r.guardianName || '—',
         r.vehicleName || '—',
         r.seatNumber ?? '—',

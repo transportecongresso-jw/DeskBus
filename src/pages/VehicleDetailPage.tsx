@@ -76,16 +76,36 @@ export function VehicleDetailPage() {
       .eq('status', 'active')
     if (assignError) console.error('[DeskBus] seat_assignments error:', assignError)
 
-    // Load all congregation passengers
+    // Load all congregation passengers (include guardian for minors/lap-children display)
     const { data: pData, error: pError } = await supabase
       .from('passengers')
-      .select('*')
+      .select('*, guardian:guardian_id(*)')
       .eq('congregation_id', v.congregation_id)
       .order('full_name')
     if (pError) console.error('[DeskBus] passengers error:', pError)
 
     const allPassengers = pData ?? []
+
+    // IDs já alocados neste veículo
     const assignedIds = (assignData ?? []).map(a => a.passenger_id)
+
+    // IDs alocados em OUTROS veículos do mesmo dia (regra: 1 veículo por dia)
+    let sameDayAssignedIds: string[] = []
+    if (v.event_day_id) {
+      const { data: sameDayVehicles } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('event_day_id', v.event_day_id)
+        .neq('id', vehicleId)
+      if (sameDayVehicles && sameDayVehicles.length > 0) {
+        const { data: sameDayAssigns } = await supabase
+          .from('seat_assignments')
+          .select('passenger_id')
+          .in('vehicle_id', sameDayVehicles.map(sv => sv.id))
+          .eq('status', 'active')
+        sameDayAssignedIds = (sameDayAssigns ?? []).map(a => a.passenger_id)
+      }
+    }
 
     // Enrich assignments with passenger data manually
     const assignDataEnriched = (assignData ?? []).map(a => ({
@@ -98,7 +118,10 @@ export function VehicleDetailPage() {
       assignment: assignDataEnriched.find(a => a.seat_id === seat.id) as any ?? undefined,
     }))
     setSeats(enriched)
-    setPassengers(allPassengers.filter(p => !assignedIds.includes(p.id)))
+
+    // Excluir passageiros já alocados neste veículo OU em outro veículo do mesmo dia
+    const allExcludedIds = new Set([...assignedIds, ...sameDayAssignedIds])
+    setPassengers(allPassengers.filter(p => !allExcludedIds.has(p.id)))
 
     setLoading(false)
   }
@@ -150,7 +173,13 @@ export function VehicleDetailPage() {
         payment_status: 'pending',
         boarding_status: 'pending',
       })
-      if (error) { toast.error('Erro ao atribuir passageiro'); return }
+      if (error) {
+        const msg = error.message?.includes('já está vinculado')
+          ? error.message
+          : 'Erro ao atribuir passageiro'
+        toast.error(msg)
+        return
+      }
       await logAudit(`Passageiro atribuído ao assento ${selectedSeat.seat_number}`)
       toast.success('Passageiro atribuído!')
       setShowSeatModal(false)
@@ -240,7 +269,13 @@ export function VehicleDetailPage() {
         substituted_from: substitutingFor.assignment!.passenger_id,
         substitution_reason: `Substituiu ${oldName}`,
       })
-      if (error) { toast.error('Erro ao realizar substituição'); return }
+      if (error) {
+        const msg = error.message?.includes('já está vinculado')
+          ? error.message
+          : 'Erro ao realizar substituição'
+        toast.error(msg)
+        return
+      }
 
       await logAction({
         congregationId: vehicle.congregation_id,

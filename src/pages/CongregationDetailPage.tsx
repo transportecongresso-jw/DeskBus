@@ -122,74 +122,41 @@ export function CongregationDetailPage() {
         ? await supabase.from('seats').select('id, vehicle_id, seat_number').in('vehicle_id', vehicleIds)
         : { data: [] }
 
-      // Passengers
+      // Passengers (include guardian for minors/lap-children)
       const { data: passengers } = await supabase
         .from('passengers')
-        .select('*, guardian:passengers!guardian_id(id, full_name)')
+        .select('*, guardian:guardian_id(*)')
         .eq('congregation_id', congregation.id)
-
-      // Passenger event days (quais dias cada passageiro vai)
-      const passengerIds = (passengers ?? []).map(p => p.id)
-      const { data: passengerDays } = passengerIds.length > 0
-        ? await supabase.from('passenger_event_days').select('*').in('passenger_id', passengerIds)
-        : { data: [] }
 
       const aList = assignments ?? []
       const sList = seats ?? []
       const pList = passengers ?? []
-      const pdList = passengerDays ?? []
 
       // Montar mapa de veículo por ID
       const vehicleMap = Object.fromEntries(vList.map(v => [v.id, v]))
 
-      // Construir linhas de export
-      // Se há dias de evento: uma linha por (passageiro, dia) com assento se existir
-      // Se não há dias: uma linha por passageiro com assento se existir
+      // Construir linhas de export a partir dos seat_assignments.
+      // O dia de cada passageiro é derivado do event_day_id do veículo ao qual está alocado,
+      // o que é a única fonte confiável de vínculo passageiro → dia no sistema.
       const rows: ExportPassengerRow[] = []
 
-      if (eventDays.length > 0) {
-        // Para cada dia, listar passageiros que participam daquele dia
-        for (const day of eventDays) {
-          const dayPassengerIds = pdList.filter(pd => pd.event_day_id === day.id).map(pd => pd.passenger_id)
-          for (const passengerId of dayPassengerIds) {
-            const p = pList.find(x => x.id === passengerId)
-            if (!p) continue
-            // Assento deste passageiro em veículo deste dia
-            const assignment = aList.find(a => a.passenger_id === passengerId && vehicleMap[a.vehicle_id]?.event_day_id === day.id)
-            const seat = assignment ? sList.find(s => s.id === assignment.seat_id) : null
-            const vehicle = assignment ? vehicleMap[assignment.vehicle_id] : null
-            rows.push({
-              name: p.full_name,
-              documentType: p.document_type,
-              documentNumber: p.document_number,
-              isMinor: p.is_minor,
-              guardianName: (p as any).guardian?.full_name ?? '',
-              vehicleName: vehicle?.name ?? '',
-              seatNumber: seat?.seat_number ?? null,
-              paymentStatus: assignment?.payment_status ?? 'pending',
-              eventDayId: day.id,
-            })
-          }
-        }
-      } else {
-        // Sem dias: todos os passageiros com assento
-        for (const assignment of aList) {
-          const p = pList.find(x => x.id === assignment.passenger_id)
-          if (!p) continue
-          const seat = sList.find(s => s.id === assignment.seat_id)
-          const vehicle = vehicleMap[assignment.vehicle_id]
-          rows.push({
-            name: p.full_name,
-            documentType: p.document_type,
-            documentNumber: p.document_number,
-            isMinor: p.is_minor,
-            guardianName: (p as any).guardian?.full_name ?? '',
-            vehicleName: vehicle?.name ?? '',
-            seatNumber: seat?.seat_number ?? null,
-            paymentStatus: assignment.payment_status,
-            eventDayId: null,
-          })
-        }
+      for (const assignment of aList) {
+        const p = pList.find(x => x.id === assignment.passenger_id)
+        if (!p) continue
+        const seat = sList.find(s => s.id === assignment.seat_id)
+        const vehicle = vehicleMap[assignment.vehicle_id]
+        rows.push({
+          name: p.full_name,
+          documentType: p.document_type,
+          documentNumber: p.document_number,
+          isMinor: p.is_minor,
+          passengerType: p.passenger_type,
+          guardianName: (p as any).guardian?.full_name ?? '',
+          vehicleName: vehicle?.name ?? '',
+          seatNumber: seat?.seat_number ?? null,
+          paymentStatus: assignment.payment_status,
+          eventDayId: vehicle?.event_day_id ?? null,
+        })
       }
 
       if (type === 'excel') {
