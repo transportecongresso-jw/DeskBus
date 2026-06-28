@@ -26,6 +26,7 @@ interface VehicleWithStats extends Vehicle {
 const CAPACITY_OPTIONS = {
   bus: [40, 42, 44, 46, 48, 50, 52, 54],
   van: [10, 12, 15, 16, 18, 20],
+  microbus: [28, 30, 32],
 }
 
 export function VehiclesPage() {
@@ -177,9 +178,14 @@ export function VehiclesPage() {
                         </span>
                       )}
                     </div>
-                    <Badge variant={v.type === 'bus' ? 'info' : 'warning'}>
-                      {formatVehicleType(v.type)}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant={v.type === 'bus' ? 'info' : v.type === 'microbus' ? 'neutral' : 'warning'}>
+                        {formatVehicleType(v.type)}
+                      </Badge>
+                      {v.wheelchair_accessible && (
+                        <Badge variant="success">♿ Acessível</Badge>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 mb-4">
@@ -279,6 +285,7 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
   const [eventId, setEventId] = useState<string>('')
   const [eventDayId, setEventDayId] = useState<string>('')
   const [transportCompanyId, setTransportCompanyId] = useState<string>('')
+  const [wheelchairAccessible, setWheelchairAccessible] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const selectedEvents = events.filter(e => e.status === 'active')
@@ -294,6 +301,7 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
       setEventId(editing.event_id ?? selectedEvent?.id ?? '')
       setEventDayId(editing.event_day_id ?? '')
       setTransportCompanyId((editing as any).transport_company_id ?? '')
+      setWheelchairAccessible(editing.wheelchair_accessible ?? false)
     } else {
       setType('bus')
       setCapacity(46)
@@ -303,6 +311,7 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
       setEventId(selectedEvent?.id ?? '')
       setEventDayId('')
       setTransportCompanyId('')
+      setWheelchairAccessible(false)
     }
   }, [editing, open])
 
@@ -317,6 +326,7 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
         event_id: eventId,
         event_day_id: eventDayId || null,
         transport_company_id: transportCompanyId || null,
+        wheelchair_accessible: wheelchairAccessible,
       }
       if (editing) {
         const { error } = await supabase.from('vehicles').update(payload).eq('id', editing.id)
@@ -395,17 +405,17 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1.5">
             <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Tipo de Veículo <span className="text-rose-500">*</span></label>
-            <HelpIcon content="Escolha entre Ônibus (maior capacidade) ou Van (menor, mais ágil)." />
+            <HelpIcon content="Ônibus (40–54 lugares), Micro-ônibus (28–32 lugares) ou Van (10–20 lugares)." />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {(['bus', 'van'] as VehicleType[]).map(t => (
+          <div className="grid grid-cols-3 gap-3">
+            {(['bus', 'microbus', 'van'] as VehicleType[]).map(t => (
               <button key={t} type="button"
                 onClick={() => { setType(t); setCapacity(CAPACITY_OPTIONS[t][0]) }}
-                className={`p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
+                className={`p-3 rounded-xl border-2 text-center transition-all cursor-pointer ${
                   type === t ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'border-stone-200 dark:border-stone-600 hover:border-amber-200'
                 }`}>
-                <Bus className={`w-7 h-7 mx-auto mb-1.5 ${type === t ? 'text-amber-500' : 'text-stone-400'}`} />
-                <p className={`text-sm font-medium ${type === t ? 'text-amber-700 dark:text-amber-400' : 'text-stone-500'}`}>
+                <Bus className={`w-6 h-6 mx-auto mb-1 ${type === t ? 'text-amber-500' : 'text-stone-400'}`} />
+                <p className={`text-xs font-medium ${type === t ? 'text-amber-700 dark:text-amber-400' : 'text-stone-500'}`}>
                   {formatVehicleType(t)}
                 </p>
               </button>
@@ -434,6 +444,21 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
 
         <Input label="Valor da Passagem (R$)" type="number" min="0" step="0.01"
           value={ticketPrice} onChange={e => setTicketPrice(parseFloat(e.target.value) || 0)} placeholder="0,00" />
+
+        {/* Acessibilidade para cadeirantes */}
+        <div className="flex items-center gap-3 p-3 bg-stone-50 dark:bg-stone-700/50 rounded-xl">
+          <input
+            type="checkbox"
+            id="wheelchair-accessible"
+            checked={wheelchairAccessible}
+            onChange={e => setWheelchairAccessible(e.target.checked)}
+            className="w-4 h-4 accent-amber-400"
+          />
+          <label htmlFor="wheelchair-accessible" className="text-sm font-medium text-stone-700 dark:text-stone-200 cursor-pointer flex-1">
+            ♿ Veículo adaptado para cadeirantes
+          </label>
+          <HelpIcon content="Marque quando o veículo possui adaptação que permite o embarque de passageiros cadeirantes." />
+        </div>
 
         {companies.length > 0 && (
           <Select

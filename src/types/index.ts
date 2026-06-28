@@ -67,7 +67,7 @@ export interface CongregationAdmin {
   congregation?: Congregation
 }
 
-export type VehicleType = 'bus' | 'van'
+export type VehicleType = 'bus' | 'van' | 'microbus'
 
 export interface Vehicle {
   id: string
@@ -82,6 +82,7 @@ export interface Vehicle {
   exported_at: string | null
   post_close_changes: number | null
   transport_company_id: string | null
+  wheelchair_accessible: boolean
   created_at: string
   congregation?: Congregation
   event_day?: EventDay
@@ -110,6 +111,7 @@ export interface Passenger {
   birth_date: string | null
   passenger_type: PassengerType
   is_minor: boolean
+  is_wheelchair_user: boolean
   guardian_id: string | null
   created_at: string
   guardian?: Passenger

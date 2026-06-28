@@ -4,7 +4,7 @@ import { User, X } from 'lucide-react'
 
 interface SeatMapProps {
   seats: SeatWithAssignment[]
-  vehicleType: 'bus' | 'van'
+  vehicleType: 'bus' | 'van' | 'microbus'
   onSeatClick: (seat: SeatWithAssignment) => void
   selectedSeat?: string | null
   highlightPassenger?: string | null
@@ -21,7 +21,7 @@ export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlig
   }, {})
 
   const sortedRows = Object.keys(rows).map(Number).sort((a, b) => a - b)
-  const cols = vehicleType === 'van' ? 3 : 4
+  const cols = vehicleType === 'van' ? 3 : 4  // bus e microbus usam layout 2+2
 
   return (
     <div className="overflow-x-auto">

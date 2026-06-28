@@ -16,6 +16,7 @@ interface AssignmentWithPassenger {
     document_number: string
     is_minor: boolean
     passenger_type?: string
+    is_wheelchair_user?: boolean
     guardian?: {
       full_name: string
       document_type: string
@@ -36,13 +37,14 @@ export async function exportToExcel(vehicle: Vehicle, assignments: AssignmentWit
       'Menor de Idade': a.passenger?.passenger_type === 'lap_child'
         ? 'Sim (Criança de Colo)'
         : a.passenger?.is_minor ? 'Sim' : 'Não',
+      'Cadeirante': a.passenger?.is_wheelchair_user ? 'Sim' : 'Não',
       'Responsável': a.passenger?.guardian?.full_name || '—',
       'Status Pagamento': a.payment_status === 'paid' ? 'Pago' : 'Pendente',
     }))
 
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
-  ws['!cols'] = [{ wch: 8 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 30 }, { wch: 16 }]
+  ws['!cols'] = [{ wch: 8 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 30 }, { wch: 16 }]
   XLSX.utils.book_append_sheet(wb, ws, 'Passageiros')
   XLSX.writeFile(wb, `DeskBus_${vehicle.name}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.xlsx`)
 }
@@ -69,7 +71,7 @@ export async function exportToPDF(vehicle: Vehicle, seats: SeatWithAssignment[])
   const activeSeats = seats.filter(s => s.assignment).sort((a, b) => a.seat_number - b.seat_number)
   autoTable(doc, {
     startY: 36,
-    head: [['#', 'Assento', 'Passageiro', 'Documento', 'Menor', 'Responsável', '✓']],
+    head: [['#', 'Assento', 'Passageiro', 'Documento', 'Menor', '♿', 'Responsável', '✓']],
     body: activeSeats.map((s, i) => [
       i + 1, s.seat_number,
       s.assignment?.passenger?.full_name ?? '',
@@ -77,6 +79,7 @@ export async function exportToPDF(vehicle: Vehicle, seats: SeatWithAssignment[])
       s.assignment?.passenger?.passenger_type === 'lap_child'
         ? 'Colo'
         : s.assignment?.passenger?.is_minor ? 'Sim' : 'Não',
+      s.assignment?.passenger?.is_wheelchair_user ? 'Sim' : '—',
       s.assignment?.passenger?.guardian?.full_name || '—',
       '☐',
     ]),
@@ -97,6 +100,7 @@ export interface ExportPassengerRow {
   documentNumber: string
   isMinor: boolean
   passengerType?: string
+  isWheelchairUser: boolean
   guardianName: string
   vehicleName: string
   seatNumber: number | null
@@ -128,6 +132,7 @@ export async function exportCongregationToExcel(
       'Menor de Idade': p.passengerType === 'lap_child'
         ? 'Sim (Criança de Colo)'
         : p.isMinor ? 'Sim' : 'Não',
+      'Cadeirante': p.isWheelchairUser ? 'Sim' : 'Não',
       'Responsável': p.guardianName || '—',
       'Veículo': p.vehicleName || '—',
       'Assento': p.seatNumber ?? '—',
@@ -149,7 +154,7 @@ export async function exportCongregationToExcel(
     XLSX.utils.sheet_add_json(ws, data, { origin: `A${header.length + 1}`, skipHeader: false })
 
     ws['!cols'] = [
-      { wch: 35 }, { wch: 25 }, { wch: 14 }, { wch: 30 }, { wch: 20 }, { wch: 8 }, { wch: 12 }
+      { wch: 35 }, { wch: 25 }, { wch: 14 }, { wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 8 }, { wch: 12 }
     ]
     return ws
   }
@@ -229,7 +234,7 @@ export async function exportCongregationToPDF(
     let finalY = startY
     autoTable(doc, {
       startY: startY + 4,
-      head: [['#', 'Nome', 'Documento', 'Menor', 'Responsável', 'Veículo', 'Assento', 'Pagto']],
+      head: [['#', 'Nome', 'Documento', 'Menor', '♿', 'Responsável', 'Veículo', 'Assento', 'Pagto']],
       body: dayRows.map((r, i) => [
         i + 1,
         r.name,
@@ -237,6 +242,7 @@ export async function exportCongregationToPDF(
         r.passengerType === 'lap_child'
           ? 'Colo'
           : r.isMinor ? 'Sim' : 'Não',
+        r.isWheelchairUser ? '♿' : '—',
         r.guardianName || '—',
         r.vehicleName || '—',
         r.seatNumber ?? '—',
@@ -250,13 +256,14 @@ export async function exportCongregationToPDF(
       alternateRowStyles: { fillColor: [255, 251, 235] },
       columnStyles: {
         0: { cellWidth: 6 },   // #
-        1: { cellWidth: 44 },  // Nome
-        2: { cellWidth: 34 },  // Documento
-        3: { cellWidth: 13 },  // Menor
-        4: { cellWidth: 30 },  // Responsável
-        5: { cellWidth: 24 },  // Veículo
-        6: { cellWidth: 14 },  // Assento
-        7: { cellWidth: 17 },  // Pagto
+        1: { cellWidth: 38 },  // Nome
+        2: { cellWidth: 30 },  // Documento
+        3: { cellWidth: 11 },  // Menor
+        4: { cellWidth: 8 },   // ♿
+        5: { cellWidth: 26 },  // Responsável
+        6: { cellWidth: 22 },  // Veículo
+        7: { cellWidth: 12 },  // Assento
+        8: { cellWidth: 14 },  // Pagto
       },
       didDrawPage: (data) => {
         finalY = data.cursor?.y ?? finalY

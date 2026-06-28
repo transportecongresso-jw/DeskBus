@@ -18,7 +18,7 @@ import { StatCard } from '../components/ui/StatCard'
 import { Spinner } from '../components/ui/Spinner'
 import { HelpIcon } from '../components/ui/Tooltip'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { formatCurrency, formatDocumentType } from '../lib/utils'
+import { formatCurrency, formatDocumentType, formatVehicleType } from '../lib/utils'
 import { exportToExcel, exportToPDF } from '../lib/export'
 import toast from 'react-hot-toast'
 
@@ -146,6 +146,13 @@ export function VehicleDetailPage() {
   async function assignPassenger(passengerId: string) {
     if (!selectedSeat || !vehicle) return
 
+    // Regra: cadeirante só pode ser vinculado a veículo acessível
+    const passenger = passengers.find(p => p.id === passengerId)
+    if (passenger?.is_wheelchair_user && !vehicle.wheelchair_accessible) {
+      toast.error('Este passageiro é cadeirante e só pode ser vinculado a veículos adaptados para cadeirantes.')
+      return
+    }
+
     // Verificar se o passageiro já tem assento ativo neste veículo
     const existingAssignment = seats
       .filter(s => s.id !== selectedSeat.id)
@@ -248,9 +255,16 @@ export function VehicleDetailPage() {
 
   async function substitutePassenger(newPassengerId: string) {
     if (!substitutingFor?.assignment || !vehicle) return
+
+    // Regra: cadeirante só pode ser vinculado a veículo acessível
+    const newP = passengers.find(p => p.id === newPassengerId)
+    if (newP?.is_wheelchair_user && !vehicle.wheelchair_accessible) {
+      toast.error('Este passageiro é cadeirante e só pode ser vinculado a veículos adaptados para cadeirantes.')
+      return
+    }
+
     await executeChange(async () => {
       const oldName = substitutingFor.assignment!.passenger?.full_name ?? ''
-      const newP = passengers.find(p => p.id === newPassengerId)
 
       // Cancel current assignment — deve ocorrer antes do insert
       const { error: cancelError } = await supabase.from('seat_assignments').update({
@@ -379,7 +393,10 @@ export function VehicleDetailPage() {
         </Button>
         <span className="text-stone-300">/</span>
         <h1 className="text-xl font-bold text-stone-800 dark:text-stone-100">{vehicle.name}</h1>
-        <Badge variant="info">{vehicle.type === 'bus' ? 'Ônibus' : 'Van'} · {vehicle.capacity} lugares</Badge>
+        <Badge variant="info">{formatVehicleType(vehicle.type)} · {vehicle.capacity} lugares</Badge>
+        {vehicle.wheelchair_accessible && (
+          <Badge variant="success">♿ Acessível</Badge>
+        )}
         {vehicle.exported_at && (
           <Badge variant="info" dot>Lista exportada</Badge>
         )}

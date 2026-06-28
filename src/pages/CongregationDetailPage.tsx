@@ -151,6 +151,7 @@ export function CongregationDetailPage() {
           documentNumber: p.document_number,
           isMinor: p.is_minor,
           passengerType: p.passenger_type,
+          isWheelchairUser: p.is_wheelchair_user ?? false,
           guardianName: (p as any).guardian?.full_name ?? '',
           vehicleName: vehicle?.name ?? '',
           seatNumber: seat?.seat_number ?? null,

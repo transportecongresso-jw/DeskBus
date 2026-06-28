@@ -10,7 +10,8 @@ export function formatDocumentType(type: DocumentType): string {
 }
 
 export function formatVehicleType(type: VehicleType): string {
-  return type === 'bus' ? 'Ônibus' : 'Van'
+  const map: Record<VehicleType, string> = { bus: 'Ônibus', van: 'Van', microbus: 'Micro-ônibus' }
+  return map[type] ?? type
 }
 
 export function formatCurrency(value: number): string {

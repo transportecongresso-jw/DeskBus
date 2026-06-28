@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Users, Plus, Pencil, Trash2, Search, Baby, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react'
+import { Users, Plus, Pencil, Trash2, Search, Baby, ChevronDown, ChevronUp, CalendarDays, Accessibility } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useEvent } from '../contexts/EventContext'
@@ -180,6 +180,9 @@ export function PassengersPage() {
                         ? <Badge variant="info" dot>🍼 Colo</Badge>
                         : p.is_minor && <Badge variant="warning" dot><Baby className="w-3 h-3" /> Menor</Badge>
                       }
+                      {p.is_wheelchair_user && (
+                        <Badge variant="neutral"><Accessibility className="w-3 h-3" /> Cadeirante</Badge>
+                      )}
                       {isAdminGeneral && p.congregation && (
                         <Badge variant="neutral">{p.congregation.name}</Badge>
                       )}
@@ -334,6 +337,7 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
   const [docNumber, setDocNumber] = useState('')
   const [birthDate, setBirthDate] = useState('')
   const [isMinor, setIsMinor] = useState(false)
+  const [isWheelchairUser, setIsWheelchairUser] = useState(false)
   const [guardianId, setGuardianId] = useState('')
   const [congregationId, setCongregationId] = useState('')
   const [eventId, setEventId] = useState<string>('')
@@ -353,6 +357,7 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
     setDocNumber(editing?.document_number ?? '')
     setBirthDate(editing?.birth_date ?? '')
     setIsMinor(editing?.is_minor ?? false)
+    setIsWheelchairUser(editing?.is_wheelchair_user ?? false)
     setGuardianId(editing?.guardian_id ?? '')
     setCongregationId(editing?.congregation_id ?? (isAdminGeneral ? '' : congregationIds[0] ?? ''))
     setEventId(editing?.event_id ?? selectedEvent?.id ?? '')
@@ -390,6 +395,7 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
         birth_date: birthDate || null,
         passenger_type: passengerType,
         is_minor: isLapChild ? true : isMinor,
+        is_wheelchair_user: isWheelchairUser,
         guardian_id: (isLapChild || isMinor) && guardianId ? guardianId : null,
         congregation_id: congregationId,
         event_id: eventId,
@@ -512,6 +518,22 @@ function PassengerForm({ open, onClose, editing, congregations, passengers, onSa
               Menor de idade (5–17 anos)
             </label>
             <HelpIcon content="Marque esta opção caso o passageiro seja menor de 18 anos. Será obrigatório informar um responsável adulto." />
+          </div>
+        )}
+
+        {!isLapChild && (
+          <div className="flex items-center gap-3 p-3 bg-stone-50 dark:bg-stone-700/50 rounded-xl">
+            <input
+              type="checkbox"
+              id="is-wheelchair"
+              checked={isWheelchairUser}
+              onChange={e => setIsWheelchairUser(e.target.checked)}
+              className="w-4 h-4 accent-amber-400"
+            />
+            <label htmlFor="is-wheelchair" className="text-sm font-medium text-stone-700 dark:text-stone-200 cursor-pointer flex-1">
+              ♿ Passageiro cadeirante
+            </label>
+            <HelpIcon content="Passageiros cadeirantes só poderão ser vinculados a veículos com adaptação para cadeirantes." />
           </div>
         )}
 
