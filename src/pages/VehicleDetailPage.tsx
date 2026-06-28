@@ -190,12 +190,13 @@ export function VehicleDetailPage() {
   async function confirmMovePassenger() {
     if (!moveConflict || !selectedSeat || !vehicle) return
     await executeChange(async () => {
-      // Cancelar atribuição antiga
-      await supabase.from('seat_assignments').update({
+      // Cancelar atribuição antiga — deve ocorrer antes do insert
+      const { error: cancelError } = await supabase.from('seat_assignments').update({
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
         cancellation_reason: `Transferido para assento ${selectedSeat.seat_number}`,
       }).eq('id', moveConflict.oldAssignmentId)
+      if (cancelError) { toast.error('Erro ao liberar assento anterior'); return }
 
       // Criar nova atribuição mantendo status de pagamento
       const { error } = await supabase.from('seat_assignments').insert({
@@ -251,12 +252,13 @@ export function VehicleDetailPage() {
       const oldName = substitutingFor.assignment!.passenger?.full_name ?? ''
       const newP = passengers.find(p => p.id === newPassengerId)
 
-      // Cancel current assignment
-      await supabase.from('seat_assignments').update({
+      // Cancel current assignment — deve ocorrer antes do insert
+      const { error: cancelError } = await supabase.from('seat_assignments').update({
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
         cancellation_reason: `Substituído por ${newP?.full_name}`,
       }).eq('id', substitutingFor.assignment!.id)
+      if (cancelError) { toast.error('Erro ao cancelar atribuição anterior'); return }
 
       // Create new assignment with substitution reference
       const { error } = await supabase.from('seat_assignments').insert({
