@@ -39,6 +39,8 @@ export function VehicleDetailPage() {
   const [pendingChange, setPendingChange] = useState<(() => Promise<void>) | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [showCancelModal, setShowCancelModal] = useState(false)
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false)
+  const [finalizing, setFinalizing] = useState(false)
   const [moveConflict, setMoveConflict] = useState<{
     passengerId: string
     passengerName: string
@@ -345,6 +347,20 @@ export function VehicleDetailPage() {
     }
   }
 
+  async function handleFinalizeList() {
+    if (!congregation) return
+    setFinalizing(true)
+    const { error } = await supabase
+      .from('congregations')
+      .update({ list_status: 'finalized', finalized_at: new Date().toISOString(), finalized_by: user?.id })
+      .eq('id', congregation.id)
+    setFinalizing(false)
+    if (error) { toast.error('Erro ao finalizar lista'); return }
+    setCongregation(prev => prev ? { ...prev, list_status: 'finalized', finalized_at: new Date().toISOString() } : prev)
+    setShowFinalizeModal(false)
+    toast.success('Lista finalizada com sucesso!')
+  }
+
   async function handleExport(type: 'excel' | 'pdf') {
     if (!vehicle) return
     try {
@@ -408,7 +424,7 @@ export function VehicleDetailPage() {
       </div>
 
       {/* Finalized warning banner */}
-      {congregation?.list_status === 'finalized' && (
+      {congregation?.list_status === 'finalized' ? (
         <div className="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-2xl flex items-start gap-3">
           <Lock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div>
@@ -418,6 +434,14 @@ export function VehicleDetailPage() {
             </p>
           </div>
         </div>
+      ) : (
+        <button
+          onClick={() => setShowFinalizeModal(true)}
+          className="w-full mb-5 p-4 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-amber-950 font-bold text-sm rounded-2xl shadow-md transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+        >
+          <Lock className="w-4 h-4" />
+          Fechar Lista de Passageiros
+        </button>
       )}
 
       {/* Stats */}
@@ -613,6 +637,16 @@ export function VehicleDetailPage() {
         title="Muitas Alterações Após Fechamento"
         message={`Você já realizou ${vehicle.post_close_changes ?? 0} alterações após o fechamento da lista. Isso pode causar divergência com a lista enviada à transportadora. Deseja continuar mesmo assim?`}
         confirmLabel="Continuar"
+      />
+      <ConfirmDialog
+        open={showFinalizeModal}
+        onClose={() => setShowFinalizeModal(false)}
+        onConfirm={handleFinalizeList}
+        variant="warning"
+        title="Fechar Lista de Passageiros"
+        message="A lista será marcada como finalizada e ficará visível para o SuperAdmin. Você poderá continuar fazendo alterações, mas elas ficarão registradas como alterações pós-fechamento. Deseja continuar?"
+        confirmLabel="Fechar Lista"
+        loading={finalizing}
       />
     </div>
   )

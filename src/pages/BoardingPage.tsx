@@ -230,18 +230,28 @@ export function BoardingPage() {
           <div className="space-y-2">
             {/* Agrupar por dia se houver dias */}
             {eventDays.length > 0 ? (
-              eventDays.map(day => {
-                const dayVehicles = vehicles.filter(v => v.event_day_id === day.id)
-                if (dayVehicles.length === 0) return null
-                return (
-                  <div key={day.id}>
-                    <p className="text-xs font-bold text-stone-400 uppercase tracking-widest px-1 mb-2">{day.label}</p>
+              <>
+                {eventDays.map(day => {
+                  const dayVehicles = vehicles.filter(v => v.event_day_id === day.id)
+                  if (dayVehicles.length === 0) return null
+                  return (
+                    <div key={day.id}>
+                      <p className="text-xs font-bold text-stone-400 uppercase tracking-widest px-1 mb-2">{day.label}</p>
+                      <div className="space-y-2">
+                        {dayVehicles.map(v => <VehicleCard key={v.id} v={v} cong={congregations.find(c => c.id === v.congregation_id)} onSelect={() => setSelectedVehicle(v.id)} />)}
+                      </div>
+                    </div>
+                  )
+                })}
+                {vehicles.filter(v => !v.event_day_id).length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold text-stone-400 uppercase tracking-widest px-1 mb-2">Todos os dias</p>
                     <div className="space-y-2">
-                      {dayVehicles.map(v => <VehicleCard key={v.id} v={v} cong={congregations.find(c => c.id === v.congregation_id)} onSelect={() => setSelectedVehicle(v.id)} />)}
+                      {vehicles.filter(v => !v.event_day_id).map(v => <VehicleCard key={v.id} v={v} cong={congregations.find(c => c.id === v.congregation_id)} onSelect={() => setSelectedVehicle(v.id)} />)}
                     </div>
                   </div>
-                )
-              })
+                )}
+              </>
             ) : (
               vehicles.map(v => <VehicleCard key={v.id} v={v} cong={congregations.find(c => c.id === v.congregation_id)} onSelect={() => setSelectedVehicle(v.id)} />)
             )}
