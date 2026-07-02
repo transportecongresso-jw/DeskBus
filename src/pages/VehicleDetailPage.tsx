@@ -91,6 +91,18 @@ export function VehicleDetailPage() {
     // IDs já alocados neste veículo
     const assignedIds = (assignData ?? []).map(a => a.passenger_id)
 
+    // Passageiros elegíveis pelo dia do veículo:
+    // Se o veículo tem um dia específico, só aparecem passageiros cadastrados para esse dia.
+    // Se o veículo não tem dia (event_day_id = null), todos são elegíveis.
+    let dayEligibleIds: Set<string> | null = null
+    if (v.event_day_id) {
+      const { data: dayLinks } = await supabase
+        .from('passenger_event_days')
+        .select('passenger_id')
+        .eq('event_day_id', v.event_day_id)
+      dayEligibleIds = new Set((dayLinks ?? []).map((d: any) => d.passenger_id))
+    }
+
     // IDs alocados em OUTROS veículos do mesmo dia (regra: 1 veículo por dia)
     let sameDayAssignedIds: string[] = []
     if (v.event_day_id) {
@@ -121,9 +133,13 @@ export function VehicleDetailPage() {
     }))
     setSeats(enriched)
 
-    // Excluir passageiros já alocados neste veículo OU em outro veículo do mesmo dia
+    // Excluir passageiros já alocados neste veículo OU em outro veículo do mesmo dia.
+    // Aplicar também o filtro de compatibilidade de dia.
     const allExcludedIds = new Set([...assignedIds, ...sameDayAssignedIds])
-    setPassengers(allPassengers.filter(p => !allExcludedIds.has(p.id)))
+    const eligibleByDay = dayEligibleIds
+      ? allPassengers.filter(p => dayEligibleIds!.has(p.id))
+      : allPassengers
+    setPassengers(eligibleByDay.filter(p => !allExcludedIds.has(p.id)))
 
     setLoading(false)
   }
