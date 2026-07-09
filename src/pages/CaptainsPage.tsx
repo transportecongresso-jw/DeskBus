@@ -272,7 +272,7 @@ export function CaptainsPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar capitão por nome ou e-mail..."
-          leftElement={<Search className="w-4 h-4 text-stone-400" />}
+          icon={<Search className="w-4 h-4 text-stone-400" />}
         />
       )}
 
@@ -322,7 +322,7 @@ export function CaptainsPage() {
                       <p className="font-semibold text-stone-800 dark:text-stone-100 truncate">{captain.full_name}</p>
                       <p className="text-xs text-stone-400 truncate">{captain.email}</p>
                     </div>
-                    <Badge variant={assignedVehicleCount > 0 ? 'success' : 'default'}>
+                    <Badge variant={assignedVehicleCount > 0 ? 'success' : 'neutral'}>
                       {assignedVehicleCount === 0 ? 'Sem veículo' : `${assignedVehicleCount} veículo${assignedVehicleCount !== 1 ? 's' : ''}`}
                     </Badge>
                   </div>
