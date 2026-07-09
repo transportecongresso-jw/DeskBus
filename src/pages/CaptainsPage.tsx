@@ -73,11 +73,34 @@ export function CaptainsPage() {
       const congIdList = (congs ?? []).map(c => c.id)
       if (congIdList.length === 0) { setLoading(false); return }
 
-      // 2+3. Capitães via RPC (SECURITY DEFINER bypassa RLS; IDs vêm do frontend)
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_captains_for_congregations', { p_congregation_ids: congIdList })
-      if (rpcError) throw rpcError
-      setCaptains(rpcData ?? [])
+      // 2. Membros com role=captain nas congregações (congregation_admins policy v20)
+      const { data: links, error: linkError } = await supabase
+        .from('congregation_admins')
+        .select('user_id, congregation_id')
+        .in('congregation_id', congIdList)
+      if (linkError) throw linkError
+
+      const captainUserIds = [...new Set((links ?? []).map(l => l.user_id))]
+
+      // 3. Perfis dos capitães (profiles policy v23)
+      let captainProfiles: Captain[] = []
+      if (captainUserIds.length > 0) {
+        const { data: profData, error: profError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, phone')
+          .in('id', captainUserIds)
+          .eq('role', 'captain')
+        if (profError) throw profError
+
+        const userCongMap: Record<string, string> = {}
+        ;(links ?? []).forEach(l => { if (!userCongMap[l.user_id]) userCongMap[l.user_id] = l.congregation_id })
+
+        captainProfiles = (profData ?? []).map(p => ({
+          ...p,
+          congregation_id: userCongMap[p.id] ?? '',
+        }))
+      }
+      setCaptains(captainProfiles)
 
       // 4. Veículos
       const { data: vehData, error: vehError } = await supabase
