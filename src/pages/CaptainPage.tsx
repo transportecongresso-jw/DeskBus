@@ -92,12 +92,19 @@ export function CaptainPage() {
   const [newDoc, setNewDoc] = useState<DocumentType>('cpf')
   const [newDocNum, setNewDocNum] = useState('')
   const [savingNew, setSavingNew] = useState(false)
+  const [myPassengerId, setMyPassengerId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (congregationIds.length === 0) { setInitialLoading(false); return }
+    if (!user) { setInitialLoading(false); return }
     loadVehicles()
-  }, [selectedEvent, congregationIds])
+    supabase
+      .from('captain_passenger_links')
+      .select('passenger_id')
+      .eq('captain_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setMyPassengerId(data?.passenger_id ?? null))
+  }, [selectedEvent, user?.id])
 
   useEffect(() => {
     if (selectedVehicle) {
@@ -117,17 +124,32 @@ export function CaptainPage() {
   async function loadVehicles() {
     setInitialLoading(true)
     setSelectedVehicle(null)
-    let cQuery = supabase.from('congregations').select('*').order('name')
-    cQuery = cQuery.in('id', congregationIds)
-    const { data: congs } = await cQuery
-    setCongregations(congs ?? [])
 
-    const congIds = (congs ?? []).map((c: any) => c.id)
-    let vQuery = supabase.from('vehicles').select('*').order('name')
-    if (congIds.length > 0) vQuery = vQuery.in('congregation_id', congIds)
+    // Load only vehicles assigned to this captain
+    const { data: assignedLinks } = await supabase
+      .from('captain_vehicles')
+      .select('vehicle_id')
+      .eq('captain_id', user!.id)
+
+    const assignedIds = (assignedLinks ?? []).map((l: any) => l.vehicle_id)
+    if (assignedIds.length === 0) {
+      setVehicles([])
+      setCongregations([])
+      setInitialLoading(false)
+      return
+    }
+
+    let vQuery = supabase.from('vehicles').select('*').in('id', assignedIds).order('name')
     if (selectedEvent) vQuery = vQuery.eq('event_id', selectedEvent.id)
     const { data: vData } = await vQuery
     setVehicles(vData ?? [])
+
+    // Load congregations just for grouping display
+    const congIds = [...new Set((vData ?? []).map((v: any) => v.congregation_id))]
+    if (congIds.length > 0) {
+      const { data: congs } = await supabase.from('congregations').select('*').in('id', congIds)
+      setCongregations(congs ?? [])
+    }
     setInitialLoading(false)
   }
 
@@ -483,7 +505,8 @@ export function CaptainPage() {
         {vehicles.length === 0 ? (
           <div className="p-10 bg-white dark:bg-stone-800 rounded-2xl border border-stone-100 dark:border-stone-700 text-center">
             <Bus className="w-10 h-10 mx-auto mb-2 text-stone-300" />
-            <p className="text-sm text-stone-400">Nenhum veículo disponível</p>
+            <p className="text-sm text-stone-400">Nenhum veículo atribuído</p>
+            <p className="text-xs text-stone-300 mt-1">Aguardando vinculação pelo administrador</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -598,6 +621,7 @@ export function CaptainPage() {
             vehicleType={selectedVehicleObj?.type ?? 'bus'}
             onSeatClick={() => {}}
             selectedSeat={null}
+            captainPassengerIds={myPassengerId ? new Set([myPassengerId]) : undefined}
           />
         </div>
       )}
@@ -672,6 +696,11 @@ export function CaptainPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className="font-semibold text-stone-800 dark:text-stone-100 text-sm">{entry.passengerName}</p>
+                    {myPassengerId && entry.passengerId === myPassengerId && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                        <Anchor className="w-2.5 h-2.5" /> Você
+                      </span>
+                    )}
                     {entry.isMinor && <Badge variant="warning"><Baby className="w-3 h-3" /></Badge>}
                   </div>
                   <p className="text-xs text-stone-400 mt-0.5">{formatDocumentType(entry.documentType as any)} · {entry.documentNumber}</p>

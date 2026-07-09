@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Bus, Users, ClipboardList,
   Building2, BarChart3, Settings, MoreHorizontal,
   Search, Shield, Star, Receipt, Truck, UserCog,
-  Bell, CheckCircle2, CalendarDays, X, LogOut, Moon, Sun, Anchor, Sparkles
+  Bell, CheckCircle2, CalendarDays, X, LogOut, Moon, Sun, Anchor, Sparkles, UserCheck
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -56,6 +56,7 @@ export function BottomNav() {
     { to: '/changelog', icon: <Sparkles className="w-5 h-5" />, label: 'Atualizações' },
     { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Configurações' },
   ] : isAdminGeneral ? [
+    { to: '/captains', icon: <UserCheck className="w-5 h-5" />, label: 'Capitães' },
     { to: '/passengers', icon: <Users className="w-5 h-5" />, label: 'Passageiros' },
     { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Disponibilidade' },
     { to: '/search', icon: <Search className="w-5 h-5" />, label: 'Pesquisa' },
@@ -70,6 +71,7 @@ export function BottomNav() {
     { to: '/changelog', icon: <Sparkles className="w-5 h-5" />, label: 'Atualizações' },
     { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Configurações' },
   ] : [
+    { to: '/captains', icon: <UserCheck className="w-5 h-5" />, label: 'Capitães' },
     { to: '/access-requests', icon: <Bell className="w-5 h-5" />, label: 'Solicitações', badge: pendingRequests },
     { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Disponibilidade' },
     { to: '/search', icon: <Search className="w-5 h-5" />, label: 'Pesquisa' },

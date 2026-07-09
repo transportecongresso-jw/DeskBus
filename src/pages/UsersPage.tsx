@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   UserCog, Plus, Pencil, Trash2, Search, Link2, Eye, EyeOff,
-  RefreshCw, ShieldOff, ShieldCheck, Filter, Phone, Mail, Clock
+  RefreshCw, ShieldOff, ShieldCheck, Filter, Phone, Mail, Clock,
+  Anchor, Bus, X
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -64,7 +65,7 @@ export function UsersPage() {
   const [congregations, setCongregations] = useState<Congregation[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterRole, setFilterRole] = useState<'all' | 'admin_general' | 'admin_congregation'>('all')
+  const [filterRole, setFilterRole] = useState<'all' | 'admin_general' | 'admin_congregation' | 'captain'>('all')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'disabled'>('all')
   const [filterCong, setFilterCong] = useState<string>('all')
   const [showFilters, setShowFilters] = useState(false)
@@ -193,6 +194,7 @@ export function UsersPage() {
                 { value: 'all', label: 'Todos os tipos' },
                 { value: 'admin_general', label: 'SuperAdmin' },
                 { value: 'admin_congregation', label: 'Admin Congregação' },
+                { value: 'captain', label: 'Capitão' },
               ]}
             />
             <Select
@@ -253,6 +255,10 @@ export function UsersPage() {
                     {u.id === currentUser?.id && <Badge variant="info">Você</Badge>}
                     {u.role === 'admin_general' ? (
                       <Badge variant="warning">SuperAdmin</Badge>
+                    ) : u.role === 'captain' ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                        <Anchor className="w-2.5 h-2.5" /> Capitão
+                      </span>
                     ) : (
                       <Badge variant="neutral">Admin Congregação</Badge>
                     )}
@@ -374,9 +380,18 @@ function UserForm({ open, onClose, editing, congregations, onSaved }: {
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
-  const [role, setRole] = useState<'admin_general' | 'admin_congregation'>('admin_congregation')
+  const [role, setRole] = useState<'admin_general' | 'admin_congregation' | 'captain'>('admin_congregation')
   const [selectedCongs, setSelectedCongs] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+
+  // Captain-specific state
+  const [captainPassenger, setCaptainPassenger] = useState<{ id: string; name: string } | null>(null)
+  const [captainVehicleIds, setCaptainVehicleIds] = useState<Set<string>>(new Set())
+  const [vehicleOptions, setVehicleOptions] = useState<{ id: string; name: string; type: string }[]>([])
+  const [passSearch, setPassSearch] = useState('')
+  const [passResults, setPassResults] = useState<{ id: string; full_name: string }[]>([])
+  const [passSearchLoading, setPassSearchLoading] = useState(false)
+  const passSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setFullName(editing?.full_name ?? '')
@@ -385,17 +400,82 @@ function UserForm({ open, onClose, editing, congregations, onSaved }: {
     setPassword('')
     setRole((editing?.role as any) ?? 'admin_congregation')
     setSelectedCongs(editing?.congregations.map(c => c.id) ?? [])
+    setCaptainPassenger(null)
+    setCaptainVehicleIds(new Set())
+    setVehicleOptions([])
+    setPassSearch('')
+    setPassResults([])
+  }, [editing, open])
+
+  // Load captain-specific data when editing a captain
+  useEffect(() => {
+    if (!editing || editing.role !== 'captain' || !open) return
+    const congId = editing.congregations[0]?.id
+    if (!congId) return
+
+    supabase
+      .from('captain_passenger_links')
+      .select('passenger_id, passengers:passenger_id(full_name)')
+      .eq('captain_id', editing.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setCaptainPassenger({ id: data.passenger_id, name: (data.passengers as any)?.full_name ?? '' })
+      })
+
+    supabase.from('vehicles').select('id, name, type').eq('congregation_id', congId).order('name')
+      .then(({ data }) => setVehicleOptions(data ?? []))
+
+    supabase.from('captain_vehicles').select('vehicle_id').eq('captain_id', editing.id)
+      .then(({ data }) => setCaptainVehicleIds(new Set((data ?? []).map((v: any) => v.vehicle_id))))
   }, [editing, open])
 
   function toggleCong(id: string) {
-    setSelectedCongs(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+    if (role === 'captain') {
+      setSelectedCongs([id])
+      // Reload vehicles and clear captain links when congregation changes
+      setVehicleOptions([])
+      setCaptainVehicleIds(new Set())
+      supabase.from('vehicles').select('id, name, type').eq('congregation_id', id).order('name')
+        .then(({ data }) => setVehicleOptions(data ?? []))
+    } else {
+      setSelectedCongs(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+    }
+  }
+
+  function handlePassSearch(query: string) {
+    setPassSearch(query)
+    if (passSearchTimeout.current) clearTimeout(passSearchTimeout.current)
+    if (query.length < 2) { setPassResults([]); return }
+    setPassSearchLoading(true)
+    passSearchTimeout.current = setTimeout(async () => {
+      const congId = selectedCongs[0]
+      if (!congId) { setPassResults([]); setPassSearchLoading(false); return }
+      const { data } = await supabase
+        .from('passengers')
+        .select('id, full_name')
+        .eq('congregation_id', congId)
+        .ilike('full_name', `%${query}%`)
+        .order('full_name')
+        .limit(8)
+      setPassResults(data ?? [])
+      setPassSearchLoading(false)
+    }, 300)
+  }
+
+  function toggleVehicle(vehicleId: string) {
+    setCaptainVehicleIds(prev => {
+      const next = new Set(prev)
+      if (next.has(vehicleId)) next.delete(vehicleId)
+      else next.add(vehicleId)
+      return next
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!SERVICE_ROLE_KEY) { toast.error('Service role key não configurada'); return }
     if (!editing && password.length < 8) { toast.error('Senha deve ter no mínimo 8 caracteres'); return }
-    if (role === 'admin_congregation' && selectedCongs.length === 0) {
+    if ((role === 'admin_congregation' || role === 'captain') && selectedCongs.length === 0) {
       toast.error('Selecione ao menos uma congregação'); return
     }
     setLoading(true)
@@ -409,11 +489,39 @@ function UserForm({ open, onClose, editing, congregations, onSaved }: {
         if (error) throw error
 
         await supabase.from('congregation_admins').delete().eq('user_id', editing.id)
-        if (role === 'admin_congregation' && selectedCongs.length > 0) {
+        if ((role === 'admin_congregation' || role === 'captain') && selectedCongs.length > 0) {
           await supabase.from('congregation_admins').insert(
             selectedCongs.map(cid => ({ user_id: editing.id, congregation_id: cid }))
           )
         }
+
+        // Captain-specific: save passenger + vehicle links
+        if (role === 'captain') {
+          const congId = selectedCongs[0]
+          if (captainPassenger) {
+            await supabase.from('captain_passenger_links').upsert({
+              captain_id: editing.id,
+              passenger_id: captainPassenger.id,
+              congregation_id: congId,
+              linked_by: currentUser!.id,
+            }, { onConflict: 'captain_id' })
+          } else {
+            await supabase.from('captain_passenger_links').delete().eq('captain_id', editing.id)
+          }
+
+          await supabase.from('captain_vehicles').delete().eq('captain_id', editing.id)
+          if (captainVehicleIds.size > 0) {
+            await supabase.from('captain_vehicles').insert(
+              [...captainVehicleIds].map(vid => ({
+                captain_id: editing.id,
+                vehicle_id: vid,
+                congregation_id: congId,
+                assigned_by: currentUser!.id,
+              }))
+            )
+          }
+        }
+
         for (const cid of selectedCongs) {
           await logAudit(cid, 'user_edited', `Usuário "${fullName}" editado`, currentUser!.id)
         }
@@ -439,12 +547,35 @@ function UserForm({ open, onClose, editing, congregations, onSaved }: {
           role,
         }).eq('id', userId)
 
-        if (role === 'admin_congregation' && selectedCongs.length > 0) {
+        if ((role === 'admin_congregation' || role === 'captain') && selectedCongs.length > 0) {
           await supabase.from('congregation_admins').insert(
             selectedCongs.map(cid => ({ user_id: userId, congregation_id: cid }))
           )
           for (const cid of selectedCongs) {
-            await logAudit(cid, 'user_created', `Usuário "${fullName}" (${email}) criado`, currentUser!.id)
+            await logAudit(cid, 'user_created', `Usuário "${fullName}" (${email}) criado como ${role}`, currentUser!.id)
+          }
+        }
+
+        // Captain-specific: save passenger + vehicle links immediately if set
+        if (role === 'captain') {
+          const congId = selectedCongs[0]
+          if (captainPassenger && congId) {
+            await supabase.from('captain_passenger_links').upsert({
+              captain_id: userId,
+              passenger_id: captainPassenger.id,
+              congregation_id: congId,
+              linked_by: currentUser!.id,
+            }, { onConflict: 'captain_id' })
+          }
+          if (captainVehicleIds.size > 0 && congId) {
+            await supabase.from('captain_vehicles').insert(
+              [...captainVehicleIds].map(vid => ({
+                captain_id: userId,
+                vehicle_id: vid,
+                congregation_id: congId,
+                assigned_by: currentUser!.id,
+              }))
+            )
           }
         }
         toast.success('Usuário criado com sucesso!')
@@ -504,14 +635,18 @@ function UserForm({ open, onClose, editing, congregations, onSaved }: {
           onChange={e => setRole(e.target.value as any)}
           options={[
             { value: 'admin_congregation', label: 'Administrador de Congregação' },
+            { value: 'captain', label: 'Capitão' },
             { value: 'admin_general', label: 'SuperAdmin (Administrador Geral)' },
           ]}
         />
 
-        {role === 'admin_congregation' && (
+        {/* Congregation selector */}
+        {(role === 'admin_congregation' || role === 'captain') && (
           <div>
             <p className="text-sm font-medium text-stone-700 dark:text-stone-200 mb-2 flex items-center gap-1.5">
-              <Link2 className="w-4 h-4 text-amber-500" /> Congregações vinculadas
+              <Link2 className="w-4 h-4 text-amber-500" />
+              {role === 'captain' ? 'Congregação' : 'Congregações vinculadas'}
+              {role === 'captain' && <span className="text-xs font-normal text-stone-400">(selecione uma)</span>}
             </p>
             <div className="max-h-48 overflow-y-auto flex flex-col gap-1.5 p-1">
               {congregations.map(c => (
@@ -531,6 +666,78 @@ function UserForm({ open, onClose, editing, congregations, onSaved }: {
               ))}
             </div>
           </div>
+        )}
+
+        {/* Captain: passenger link */}
+        {role === 'captain' && (
+          <div className="border-t border-stone-100 dark:border-stone-700 pt-4">
+            <p className="text-sm font-medium text-stone-700 dark:text-stone-200 mb-2 flex items-center gap-1.5">
+              <Anchor className="w-4 h-4 text-amber-500" /> Passageiro vinculado
+              <span className="text-xs font-normal text-stone-400">(opcional)</span>
+            </p>
+            {captainPassenger ? (
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border-2 border-emerald-300 dark:border-emerald-700">
+                <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300 flex-1">{captainPassenger.name}</span>
+                <button type="button" onClick={() => { setCaptainPassenger(null); setPassSearch(''); setPassResults([]) }}
+                  className="text-stone-400 hover:text-rose-500 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400 pointer-events-none" />
+                  <input
+                    value={passSearch}
+                    onChange={e => handlePassSearch(e.target.value)}
+                    placeholder={selectedCongs.length === 0 ? 'Selecione uma congregação primeiro' : 'Digitar nome do passageiro...'}
+                    disabled={selectedCongs.length === 0}
+                    className="w-full pl-8 pr-4 py-2.5 text-sm rounded-xl border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
+                  />
+                  {passSearchLoading && <div className="absolute right-3 top-1/2 -translate-y-1/2"><Spinner size="sm" /></div>}
+                </div>
+                {passResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 shadow-xl z-20 overflow-hidden">
+                    {passResults.map(p => (
+                      <button key={p.id} type="button"
+                        onClick={() => { setCaptainPassenger({ id: p.id, name: p.full_name }); setPassSearch(''); setPassResults([]) }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                        {p.full_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {passSearch.length >= 2 && !passSearchLoading && passResults.length === 0 && (
+                  <p className="text-xs text-stone-400 mt-1 pl-1">Nenhum passageiro encontrado</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Captain: vehicle links */}
+        {role === 'captain' && vehicleOptions.length > 0 && (
+          <div>
+            <p className="text-sm font-medium text-stone-700 dark:text-stone-200 mb-2 flex items-center gap-1.5">
+              <Bus className="w-4 h-4 text-amber-500" /> Veículos autorizados
+            </p>
+            <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto p-1">
+              {vehicleOptions.map(v => (
+                <button key={v.id} type="button" onClick={() => toggleVehicle(v.id)}
+                  className={`text-left w-full px-3 py-2 rounded-xl border-2 text-sm transition-all ${
+                    captainVehicleIds.has(v.id)
+                      ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
+                      : 'border-stone-200 dark:border-stone-600 text-stone-600 dark:text-stone-300 hover:border-stone-300'
+                  }`}>
+                  <span className="mr-2">{captainVehicleIds.has(v.id) ? '✓' : '○'}</span>
+                  {v.name} <span className="text-stone-400 text-xs">· {v.type === 'bus' ? 'Ônibus' : v.type === 'van' ? 'Van' : 'Micro'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {role === 'captain' && selectedCongs.length > 0 && vehicleOptions.length === 0 && (
+          <p className="text-xs text-stone-400 pl-1">Nenhum veículo cadastrado nesta congregação.</p>
         )}
 
       </form>

@@ -1,6 +1,6 @@
 import { Seat, SeatWithAssignment, Passenger } from '../../types'
 import { cn } from '../../lib/utils'
-import { User, X } from 'lucide-react'
+import { User, X, Anchor } from 'lucide-react'
 
 interface SeatMapProps {
   seats: SeatWithAssignment[]
@@ -8,9 +8,10 @@ interface SeatMapProps {
   onSeatClick: (seat: SeatWithAssignment) => void
   selectedSeat?: string | null
   highlightPassenger?: string | null
+  captainPassengerIds?: Set<string>
 }
 
-export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlightPassenger }: SeatMapProps) {
+export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlightPassenger, captainPassengerIds }: SeatMapProps) {
   // Group seats by row
   const rows = seats.reduce<Record<number, SeatWithAssignment[]>>((acc, seat) => {
     const row = seat.row_number
@@ -67,7 +68,7 @@ export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlig
 
                 {/* Left seats */}
                 <div className={`grid gap-1.5`} style={{ gridTemplateColumns: `repeat(${leftCount}, 1fr)` }}>
-                  {left.map(seat => <SeatCell key={seat.id} seat={seat} selected={selectedSeat === seat.id} highlighted={highlightPassenger ? seat.assignment?.passenger_id === highlightPassenger : false} onClick={() => onSeatClick(seat)} />)}
+                  {left.map(seat => <SeatCell key={seat.id} seat={seat} selected={selectedSeat === seat.id} highlighted={highlightPassenger ? seat.assignment?.passenger_id === highlightPassenger : false} isCaptain={captainPassengerIds ? captainPassengerIds.has(seat.assignment?.passenger_id ?? '') : false} onClick={() => onSeatClick(seat)} />)}
                   {/* Fill empty slots */}
                   {Array.from({ length: Math.max(0, leftCount - left.length) }).map((_, i) => (
                     <div key={`empty-l-${i}`} className="w-10 h-10" />
@@ -81,7 +82,7 @@ export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlig
 
                 {/* Right seats */}
                 <div className={`grid gap-1.5`} style={{ gridTemplateColumns: `repeat(${rightCount}, 1fr)` }}>
-                  {right.map(seat => <SeatCell key={seat.id} seat={seat} selected={selectedSeat === seat.id} highlighted={highlightPassenger ? seat.assignment?.passenger_id === highlightPassenger : false} onClick={() => onSeatClick(seat)} />)}
+                  {right.map(seat => <SeatCell key={seat.id} seat={seat} selected={selectedSeat === seat.id} highlighted={highlightPassenger ? seat.assignment?.passenger_id === highlightPassenger : false} isCaptain={captainPassengerIds ? captainPassengerIds.has(seat.assignment?.passenger_id ?? '') : false} onClick={() => onSeatClick(seat)} />)}
                   {Array.from({ length: Math.max(0, rightCount - right.length) }).map((_, i) => (
                     <div key={`empty-r-${i}`} className="w-10 h-10" />
                   ))}
@@ -97,6 +98,12 @@ export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlig
           <LegendItem color="bg-amber-100 border-amber-300 dark:bg-amber-900/30 dark:border-amber-700" label="Ocupado" />
           <LegendItem color="bg-rose-100 border-rose-300 dark:bg-rose-900/30 dark:border-rose-700" label="Pagamento pendente" />
           <LegendItem color="bg-emerald-100 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700" label="Pago" />
+          {captainPassengerIds && captainPassengerIds.size > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-stone-500">
+              <Anchor className="w-3 h-3 text-amber-500" />
+              Capitão
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -112,8 +119,8 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   )
 }
 
-function SeatCell({ seat, selected, highlighted, onClick }: {
-  seat: SeatWithAssignment; selected: boolean; highlighted: boolean; onClick: () => void
+function SeatCell({ seat, selected, highlighted, isCaptain, onClick }: {
+  seat: SeatWithAssignment; selected: boolean; highlighted: boolean; isCaptain: boolean; onClick: () => void
 }) {
   const occupied = !!seat.assignment
   const paid = seat.assignment?.payment_status === 'paid'
@@ -122,7 +129,7 @@ function SeatCell({ seat, selected, highlighted, onClick }: {
   return (
     <button
       onClick={onClick}
-      title={occupied ? `${seat.seat_number} — ${seat.assignment?.passenger?.full_name}` : `Assento ${seat.seat_number} — Livre`}
+      title={occupied ? `${seat.seat_number} — ${seat.assignment?.passenger?.full_name}${isCaptain ? ' (Capitão)' : ''}` : `Assento ${seat.seat_number} — Livre`}
       className={cn(
         'seat w-10 h-10 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all',
         'focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-1',
@@ -134,7 +141,10 @@ function SeatCell({ seat, selected, highlighted, onClick }: {
       )}
     >
       <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400 leading-none">{seat.seat_number}</span>
-      {occupied && <User className="w-3 h-3 text-stone-400 dark:text-stone-500 mt-0.5" />}
+      {occupied && (isCaptain
+        ? <Anchor className="w-3 h-3 text-amber-500 dark:text-amber-400 mt-0.5" />
+        : <User className="w-3 h-3 text-stone-400 dark:text-stone-500 mt-0.5" />
+      )}
     </button>
   )
 }

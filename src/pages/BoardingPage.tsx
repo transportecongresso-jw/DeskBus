@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ClipboardList, CheckCircle2, XCircle, Clock, Search, Bus, CalendarDays, Users, ChevronLeft } from 'lucide-react'
+import { ClipboardList, CheckCircle2, XCircle, Clock, Search, Bus, CalendarDays, Users, ChevronLeft, Anchor } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useEvent } from '../contexts/EventContext'
@@ -47,6 +47,7 @@ export function BoardingPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | BoardingStatus>('all')
   const [obsModal, setObsModal] = useState<{ entry: BoardingEntry; obs: string } | null>(null)
+  const [captainPassengerIds, setCaptainPassengerIds] = useState<Set<string>>(new Set())
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -79,6 +80,15 @@ export function BoardingPage() {
     if (selectedEvent) vQuery = vQuery.eq('event_id', selectedEvent.id)
     const { data: vData } = await vQuery
     setVehicles(vData ?? [])
+
+    // Load captain passenger IDs for visual indicator
+    if (congIds.length > 0) {
+      const { data: captainLinks } = await supabase
+        .from('captain_passenger_links')
+        .select('passenger_id')
+        .in('congregation_id', congIds)
+      setCaptainPassengerIds(new Set((captainLinks ?? []).map(l => l.passenger_id)))
+    }
     setInitialLoading(false)
   }
 
@@ -411,7 +421,14 @@ export function BoardingPage() {
                   {entry.seatNumber}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-stone-800 dark:text-stone-100 truncate">{entry.passengerName}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="font-semibold text-stone-800 dark:text-stone-100 truncate">{entry.passengerName}</p>
+                    {captainPassengerIds.has(entry.passengerId) && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                        <Anchor className="w-2.5 h-2.5" /> Capitão
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className="text-xs text-stone-400">{formatDocumentType(entry.documentType as any)} · {entry.documentNumber}</span>
                     {entry.isMinor && <Badge variant="warning">Menor</Badge>}

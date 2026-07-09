@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Bus, Users, Building2, LayoutDashboard, Search,
-  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield, CalendarDays, Star, Receipt, Truck, UserCog, BarChart3, Bell, Anchor, Sparkles
+  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield, CalendarDays, Star, Receipt, Truck, UserCog, BarChart3, Bell, Anchor, Sparkles, UserCheck
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
   { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Disponibilidade' },
   { to: '/search', icon: <Search className="w-5 h-5" />, label: 'Pesquisa' },
   { to: '/users', icon: <UserCog className="w-5 h-5" />, label: 'Usuários', adminOnly: true },
+  { to: '/captains', icon: <UserCheck className="w-5 h-5" />, label: 'Capitães' },
   { to: '/access-requests', icon: <Bell className="w-5 h-5" />, label: 'Solicitações' },
   { to: '/transport-companies', icon: <Truck className="w-5 h-5" />, label: 'Empresas', adminOnly: true },
   { to: '/ratings', icon: <Star className="w-5 h-5" />, label: 'Avaliações' },

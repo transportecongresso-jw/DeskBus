@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ClipboardList, Check, X, Clock, Building2, Phone, Mail, RefreshCw, ShieldCheck, Anchor, Info, ChevronDown } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ClipboardList, Check, X, Clock, Building2, Phone, Mail, RefreshCw, ShieldCheck, Anchor, Info, ChevronDown, Search, UserCheck, Link2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { Congregation } from '../types'
@@ -65,6 +65,18 @@ export function AccessRequestsPage() {
   const [selectedCongId, setSelectedCongId] = useState('')
   const [selectedRole, setSelectedRole] = useState('admin_congregation')
   const [rejectionReason, setRejectionReason] = useState('')
+
+  // Post-approval: optional passenger link for captains
+  const [linkPassengerModal, setLinkPassengerModal] = useState<{
+    captainUserId: string
+    captainName: string
+    congregationId: string
+  } | null>(null)
+  const [passLinkSearch, setPassLinkSearch] = useState('')
+  const [passLinkResults, setPassLinkResults] = useState<{ id: string; full_name: string }[]>([])
+  const [passLinkLoading, setPassLinkLoading] = useState(false)
+  const [passLinkSaving, setPassLinkSaving] = useState(false)
+  const passLinkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { loadData() }, [congregationIds, isAdminGeneral])
 
@@ -155,11 +167,58 @@ export function AccessRequestsPage() {
       setSelectedCongId('')
       setSelectedRole('admin_congregation')
       loadData()
+
+      // For captains, optionally link to a passenger
+      if (role === 'captain') {
+        setPassLinkSearch('')
+        setPassLinkResults([])
+        setLinkPassengerModal({ captainUserId: userId, captainName: approveModal.full_name, congregationId: congId })
+      }
     } catch (err: any) {
       playSound('error')
       toast.error(err.message ?? 'Erro ao aprovar solicitação')
     } finally {
       setApproving(false)
+    }
+  }
+
+  function handlePassLinkSearch(query: string, congregationId: string) {
+    setPassLinkSearch(query)
+    if (passLinkTimeoutRef.current) clearTimeout(passLinkTimeoutRef.current)
+    if (query.length < 2) { setPassLinkResults([]); return }
+    setPassLinkLoading(true)
+    passLinkTimeoutRef.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('passengers')
+        .select('id, full_name')
+        .eq('congregation_id', congregationId)
+        .ilike('full_name', `%${query}%`)
+        .order('full_name')
+        .limit(8)
+      setPassLinkResults(data ?? [])
+      setPassLinkLoading(false)
+    }, 300)
+  }
+
+  async function handlePassLinkSave(passenger: { id: string; full_name: string }) {
+    if (!linkPassengerModal) return
+    setPassLinkSaving(true)
+    try {
+      const { error } = await supabase
+        .from('captain_passenger_links')
+        .upsert({
+          captain_id: linkPassengerModal.captainUserId,
+          passenger_id: passenger.id,
+          congregation_id: linkPassengerModal.congregationId,
+          linked_by: user?.id,
+        }, { onConflict: 'captain_id' })
+      if (error) throw error
+      toast.success(`Capitão vinculado a ${passenger.full_name}`)
+      setLinkPassengerModal(null)
+    } catch {
+      toast.error('Erro ao vincular passageiro')
+    } finally {
+      setPassLinkSaving(false)
     }
   }
 
@@ -480,6 +539,78 @@ export function AccessRequestsPage() {
                 className="w-full px-4 py-3 rounded-xl border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-rose-400"
               />
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Optional: link captain to passenger after approval */}
+      <Modal
+        open={!!linkPassengerModal}
+        onClose={() => setLinkPassengerModal(null)}
+        title="Vincular Passageiro (Opcional)"
+        size="sm"
+        footer={
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setLinkPassengerModal(null)} className="flex-1">
+              Fazer depois
+            </Button>
+          </div>
+        }
+      >
+        {linkPassengerModal && (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-700">
+              <Anchor className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">{linkPassengerModal.captainName}</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                  O capitão também ocupa um assento como passageiro. Vincule-o para que apareça identificado no veículo.
+                </p>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400 pointer-events-none" />
+                <input
+                  value={passLinkSearch}
+                  onChange={e => handlePassLinkSearch(e.target.value, linkPassengerModal.congregationId)}
+                  placeholder="Comece a digitar o nome do passageiro..."
+                  autoFocus
+                  className="w-full pl-8 pr-4 py-2.5 text-sm rounded-xl border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+                {passLinkLoading && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2"><Spinner size="sm" /></div>
+                )}
+              </div>
+
+              {passLinkResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 shadow-xl z-10 overflow-hidden">
+                  {passLinkResults.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => handlePassLinkSave(p)}
+                      disabled={passLinkSaving}
+                      className="w-full text-left px-4 py-2.5 text-sm text-stone-700 dark:text-stone-200 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <UserCheck className="w-3.5 h-3.5 text-stone-300 flex-shrink-0" />
+                      {p.full_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {passLinkSearch.length >= 2 && !passLinkLoading && passLinkResults.length === 0 && (
+                <p className="text-xs text-stone-400 mt-2 pl-1">Nenhum passageiro encontrado para "{passLinkSearch}"</p>
+              )}
+              {passLinkSearch.length < 2 && passLinkSearch.length > 0 && (
+                <p className="text-xs text-stone-400 mt-2 pl-1">Continue digitando para pesquisar...</p>
+              )}
+            </div>
+
+            <p className="text-xs text-stone-400 text-center">
+              Isso pode ser feito depois na tela de Capitães.
+            </p>
           </div>
         )}
       </Modal>
