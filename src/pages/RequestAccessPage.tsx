@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bus, ArrowLeft, Send, CheckCircle2, Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { Bus, ArrowLeft, Send, CheckCircle2, Eye, EyeOff, ChevronDown, AlertTriangle, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -23,14 +23,26 @@ export function RequestAccessPage() {
   const [submitted, setSubmitted] = useState(false)
   const [congregations, setCongregations] = useState<CongOption[]>([])
   const [congLoading, setCongLoading] = useState(true)
+  const [congError, setCongError] = useState(false)
   const [submittedEmail, setSubmittedEmail] = useState('')
 
-  useEffect(() => {
-    supabase.from('congregations').select('id, name, city').order('name').then(({ data }) => {
-      setCongregations(data ?? [])
-      setCongLoading(false)
-    })
-  }, [])
+  useEffect(() => { loadCongregations() }, [])
+
+  async function loadCongregations() {
+    setCongLoading(true)
+    setCongError(false)
+    const { data, error } = await supabase
+      .from('congregations')
+      .select('id, name, city')
+      .order('name')
+    if (error || !data) {
+      console.error('[RequestAccessPage] Erro ao carregar congregações:', error)
+      setCongError(true)
+    } else {
+      setCongregations(data)
+    }
+    setCongLoading(false)
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -131,23 +143,53 @@ export function RequestAccessPage() {
                   <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
                     Congregação <span className="text-rose-500">*</span>
                   </label>
-                  <div className="relative">
-                    <select
-                      value={congregationId}
-                      onChange={e => setCongregationId(e.target.value)}
-                      required
-                      disabled={congLoading}
-                      className="w-full appearance-none px-4 py-3 pr-10 rounded-xl border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
-                    >
-                      <option value="">{congLoading ? 'Carregando...' : 'Selecione sua congregação...'}</option>
-                      {congregations.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}{c.city ? ` - ${c.city}` : ''}
+
+                  {congError ? (
+                    <div className="flex items-center gap-3 px-4 py-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-700 rounded-xl">
+                      <AlertTriangle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                      <p className="text-xs text-rose-600 dark:text-rose-400 flex-1">
+                        Não foi possível carregar as congregações.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={loadCongregations}
+                        className="flex items-center gap-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:text-rose-700 transition-colors"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Tentar novamente
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <select
+                        value={congregationId}
+                        onChange={e => setCongregationId(e.target.value)}
+                        required
+                        disabled={congLoading}
+                        className="w-full appearance-none px-4 py-3 pr-10 rounded-xl border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
+                      >
+                        <option value="">
+                          {congLoading
+                            ? 'Carregando congregações...'
+                            : congregations.length === 0
+                              ? 'Nenhuma congregação disponível'
+                              : 'Selecione sua congregação...'}
                         </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
-                  </div>
+                        {congregations.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}{c.city ? ` - ${c.city}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+                    </div>
+                  )}
+
+                  {!congError && !congLoading && congregations.length === 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 pl-1">
+                      Nenhuma congregação cadastrada no sistema. Entre em contato com o administrador.
+                    </p>
+                  )}
                   {selectedCong && (
                     <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5 pl-1">
                       ✓ {selectedCong.name}{selectedCong.city ? ` — ${selectedCong.city}` : ''}
