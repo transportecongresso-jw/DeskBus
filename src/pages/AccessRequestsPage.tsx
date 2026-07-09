@@ -104,6 +104,9 @@ export function AccessRequestsPage() {
     try {
       const role = isAdminGeneral ? selectedRole : (approveModal.requested_role ?? 'captain')
 
+      // Pass role + full_name in user_metadata so the handle_new_user trigger
+      // creates the profile with the correct role automatically (SECURITY DEFINER,
+      // bypasses RLS). This ensures even congregation-admin approvals set the role.
       const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
         method: 'POST',
         headers: adminHeaders(),
@@ -111,7 +114,10 @@ export function AccessRequestsPage() {
           email: approveModal.email,
           password: approveModal.password_temp,
           email_confirm: true,
-          user_metadata: { full_name: approveModal.full_name },
+          user_metadata: {
+            full_name: approveModal.full_name,
+            role,
+          },
         }),
       })
       const userData = await res.json()
@@ -119,6 +125,8 @@ export function AccessRequestsPage() {
 
       const userId = userData.id
 
+      // Best-effort profile update (phone + extra fields). Role is already set by trigger.
+      // May be a no-op for congregation admins due to RLS, but that's fine — role is correct.
       await supabase.from('profiles').update({
         full_name: approveModal.full_name,
         phone: approveModal.phone || null,
