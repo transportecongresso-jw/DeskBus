@@ -560,7 +560,7 @@ export function VehicleDetailPage() {
                           {seat.assignment!.passenger?.full_name}
                         </p>
                         {captainPassengerIds.has(seat.assignment!.passenger_id) && (
-                          <Anchor className="w-3 h-3 text-amber-500 flex-shrink-0" title="Capitão" />
+                          <span title="Capitão"><Anchor className="w-3 h-3 text-amber-500 flex-shrink-0" /></span>
                         )}
                       </div>
                       <p className="text-xs text-stone-400">
