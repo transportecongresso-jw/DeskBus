@@ -329,6 +329,61 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
         wheelchair_accessible: wheelchairAccessible,
       }
       if (editing) {
+        const oldCapacity = editing.capacity
+        const newCapacity = capacity
+
+        if (newCapacity < oldCapacity) {
+          // Busca assentos que seriam removidos (seat_number > nova capacidade)
+          const { data: excessSeats } = await supabase
+            .from('seats')
+            .select('id, seat_number')
+            .eq('vehicle_id', editing.id)
+            .gt('seat_number', newCapacity)
+
+          if (excessSeats && excessSeats.length > 0) {
+            // Verifica se algum desses assentos tem reserva ativa
+            const { data: blocked } = await supabase
+              .from('seat_assignments')
+              .select('id')
+              .in('seat_id', excessSeats.map(s => s.id))
+              .eq('status', 'active')
+
+            if (blocked && blocked.length > 0) {
+              toast.error(
+                `Não é possível reduzir para ${newCapacity} lugares: ${blocked.length} passageiro${blocked.length > 1 ? 's estão' : ' está'} nos assentos que seriam removidos. Remova-os do veículo primeiro.`
+              )
+              setLoading(false)
+              return
+            }
+
+            // Nenhuma reserva ativa nos assentos excedentes — remove-os
+            await supabase.from('seats').delete().in('id', excessSeats.map(s => s.id))
+          }
+        } else if (newCapacity > oldCapacity) {
+          // Descobre o maior seat_number atual para continuar a numeração
+          const { data: existingSeats } = await supabase
+            .from('seats')
+            .select('seat_number')
+            .eq('vehicle_id', editing.id)
+            .order('seat_number', { ascending: false })
+            .limit(1)
+
+          const currentMax = existingSeats?.[0]?.seat_number ?? 0
+          if (currentMax < newCapacity) {
+            const newSeats = Array.from({ length: newCapacity - currentMax }, (_, i) => {
+              const seatNum = currentMax + i + 1
+              return {
+                vehicle_id: editing.id,
+                seat_number: seatNum,
+                row_number: Math.ceil(seatNum / 4),
+                column_position: ((seatNum - 1) % 4) + 1,
+                is_driver: false,
+              }
+            })
+            await supabase.from('seats').insert(newSeats)
+          }
+        }
+
         const { error } = await supabase.from('vehicles').update(payload).eq('id', editing.id)
         if (error) throw error
         toast.success('Veículo atualizado')
