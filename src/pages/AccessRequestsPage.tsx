@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ClipboardList, Check, X, Clock, Building2, Phone, Mail, RefreshCw, ShieldCheck, Anchor, Info } from 'lucide-react'
+import { ClipboardList, Check, X, Clock, Building2, Phone, Mail, RefreshCw, ShieldCheck, Anchor, Info, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { Congregation } from '../types'
@@ -330,7 +330,7 @@ export function AccessRequestsPage() {
       <Modal
         open={!!approveModal}
         onClose={() => { setApproveModal(null); setSelectedCongId('') }}
-        title="Aprovar Solicitação"
+        title="Confirmar Aprovação"
         size="sm"
         footer={
           <div className="flex gap-3">
@@ -349,45 +349,94 @@ export function AccessRequestsPage() {
           </div>
         }
       >
-        {approveModal && (
-          <div className="flex flex-col gap-4">
-            <div className="p-4 bg-stone-50 dark:bg-stone-700/50 rounded-xl">
-              <p className="text-sm font-semibold text-stone-800 dark:text-stone-100">{approveModal.full_name}</p>
-              <p className="text-xs text-stone-500 mt-0.5">{approveModal.email}</p>
-              <p className="text-xs text-stone-400 mt-0.5">Congregação: {approveModal.congregation_name}</p>
-              <div className="mt-1">{roleBadge(approveModal.requested_role)}</div>
-            </div>
+        {approveModal && (() => {
+          const effectiveCongId = selectedCongId || approveModal.congregation_id || ''
+          const effectiveCong = congregations.find(c => c.id === effectiveCongId)
+          const congDisplayName = effectiveCong
+            ? `${effectiveCong.name}${effectiveCong.city ? ` — ${effectiveCong.city}` : ''}`
+            : approveModal.congregation_name || '—'
+          const effectiveRole = selectedRole || approveModal.requested_role || 'admin_congregation'
 
-            {isAdminGeneral && (
-              <>
-                <Select
-                  label="Vincular à Congregação *"
-                  value={selectedCongId}
-                  onChange={e => setSelectedCongId(e.target.value)}
-                  options={[
-                    { value: '', label: 'Selecione a congregação...' },
-                    ...congregations.map(c => ({ value: c.id, label: `${c.name}${c.city ? ` · ${c.city}` : ''}` })),
-                  ]}
-                />
-                <Select
-                  label="Perfil de Acesso"
-                  value={selectedRole}
-                  onChange={e => setSelectedRole(e.target.value)}
-                  options={[
-                    { value: 'admin_congregation', label: 'Administrador de Congregação' },
-                    { value: 'captain', label: 'Capitão' },
-                  ]}
-                />
-              </>
-            )}
+          return (
+            <div className="flex flex-col gap-4">
+              {/* Summary — what will be created */}
+              <div className="p-4 bg-stone-50 dark:bg-stone-700/50 rounded-xl space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-stone-800 dark:text-stone-100">{approveModal.full_name}</p>
+                    <p className="text-xs text-stone-400 mt-0.5">{approveModal.email}</p>
+                  </div>
+                  {roleBadge(effectiveRole)}
+                </div>
+                {approveModal.phone && (
+                  <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+                    <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                    {approveModal.phone}
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300">
+                  <Building2 className="w-3.5 h-3.5 text-stone-400 flex-shrink-0" />
+                  <span className="font-medium">{congDisplayName}</span>
+                  {selectedCongId && selectedCongId !== approveModal.congregation_id && (
+                    <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] rounded-full font-medium">
+                      corrigida
+                    </span>
+                  )}
+                </div>
+              </div>
 
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-700">
-              <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
-                O usuário será criado imediatamente e poderá acessar o sistema com o e-mail e a senha que definiu.
-              </p>
+              {/* Optional correction — SuperAdmin only */}
+              {isAdminGeneral && (
+                <details className="group">
+                  <summary className="flex items-center justify-between cursor-pointer list-none px-3 py-2.5 rounded-xl bg-stone-50 dark:bg-stone-700/50 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors">
+                    <span className="text-xs font-medium text-stone-500 dark:text-stone-400">
+                      Corrigir congregação ou perfil
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-stone-400 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="mt-3 flex flex-col gap-3 px-1">
+                    {/* Congregation selector — pre-filled with user's choice */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Congregação</label>
+                      <select
+                        value={selectedCongId}
+                        onChange={e => setSelectedCongId(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      >
+                        {!approveModal.congregation_id && (
+                          <option value="">Selecione a congregação...</option>
+                        )}
+                        {congregations.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}{c.city ? ` — ${c.city}` : ''}
+                            {c.id === approveModal.congregation_id ? ' (selecionada pelo usuário)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Role selector — pre-filled with requested role */}
+                    <Select
+                      label="Perfil de Acesso"
+                      value={selectedRole}
+                      onChange={e => setSelectedRole(e.target.value)}
+                      options={[
+                        { value: 'admin_congregation', label: 'Administrador de Congregação' },
+                        { value: 'captain', label: 'Capitão' },
+                      ]}
+                    />
+                  </div>
+                </details>
+              )}
+
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-700">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                  O usuário será criado e vinculado automaticamente à congregação e ao perfil acima.
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </Modal>
 
       {/* Reject Modal */}
