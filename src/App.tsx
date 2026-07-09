@@ -25,6 +25,7 @@ import { InvoicesPage } from './pages/InvoicesPage'
 import { AvailabilityPage } from './pages/AvailabilityPage'
 import { RequestAccessPage } from './pages/RequestAccessPage'
 import { AccessRequestsPage } from './pages/AccessRequestsPage'
+import { CaptainPage } from './pages/CaptainPage'
 import { PageSpinner } from './components/ui/Spinner'
 
 const queryClient = new QueryClient()
@@ -52,7 +53,8 @@ function AppRoutes() {
         <Route path="congregations" element={<ProtectedRoute adminOnly><CongregationsPage /></ProtectedRoute>} />
         <Route path="congregations/:id" element={<CongregationDetailPage />} />
         <Route path="users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
-        <Route path="access-requests" element={<ProtectedRoute adminOnly><AccessRequestsPage /></ProtectedRoute>} />
+        <Route path="access-requests" element={<AccessRequestsPage />} />
+        <Route path="captain" element={<CaptainPage />} />
         <Route path="finalized-lists" element={<ProtectedRoute adminOnly><FinalizedListsPage /></ProtectedRoute>} />
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="vehicles/:id" element={<VehicleDetailPage />} />

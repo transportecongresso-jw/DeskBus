@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Bus, Users, Building2, LayoutDashboard, Search,
-  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield, CalendarDays, Star, Receipt, Truck, UserCog, BarChart3, Bell
+  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield, CalendarDays, Star, Receipt, Truck, UserCog, BarChart3, Bell, Anchor
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -29,7 +29,7 @@ const navItems: NavItem[] = [
   { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Disponibilidade' },
   { to: '/search', icon: <Search className="w-5 h-5" />, label: 'Pesquisa' },
   { to: '/users', icon: <UserCog className="w-5 h-5" />, label: 'Usuários', adminOnly: true },
-  { to: '/access-requests', icon: <Bell className="w-5 h-5" />, label: 'Solicitações', adminOnly: true },
+  { to: '/access-requests', icon: <Bell className="w-5 h-5" />, label: 'Solicitações' },
   { to: '/transport-companies', icon: <Truck className="w-5 h-5" />, label: 'Empresas', adminOnly: true },
   { to: '/ratings', icon: <Star className="w-5 h-5" />, label: 'Avaliações' },
   { to: '/invoices', icon: <Receipt className="w-5 h-5" />, label: 'Notas Fiscais' },
@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
 ]
 
 export function Sidebar() {
-  const { profile, isAdminGeneral, signOut } = useAuth()
+  const { profile, isAdminGeneral, isCapitan, signOut } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
@@ -50,7 +50,13 @@ export function Sidebar() {
     toast.success('Sessão encerrada')
   }
 
-  const filteredNav = navItems.filter(item => !item.adminOnly || isAdminGeneral)
+  // Captains see only their operational page
+  const captainNav: NavItem[] = [
+    { to: '/captain', icon: <Anchor className="w-5 h-5" />, label: 'Embarque' },
+  ]
+  const filteredNav = isCapitan
+    ? captainNav
+    : navItems.filter(item => !item.adminOnly || isAdminGeneral)
 
   return (
     <aside className={cn(
@@ -149,7 +155,7 @@ export function Sidebar() {
             <p className="text-xs font-medium text-stone-700 dark:text-stone-200 truncate">{profile?.full_name}</p>
             <p className="text-[11px] text-stone-400 truncate">{profile?.email}</p>
             <p className="text-[10px] text-amber-600 font-medium mt-0.5">
-              {profile?.role === 'admin_general' ? 'Administrador Geral' : 'Admin. Congregação'}
+              {profile?.role === 'admin_general' ? 'Administrador Geral' : profile?.role === 'captain' ? 'Capitão' : 'Admin. Congregação'}
             </p>
           </div>
         )}

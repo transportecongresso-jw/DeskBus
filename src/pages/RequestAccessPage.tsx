@@ -1,16 +1,19 @@
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bus, ArrowLeft, Send, CheckCircle2, Eye, EyeOff } from 'lucide-react'
+import { Bus, ArrowLeft, Send, CheckCircle2, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import toast from 'react-hot-toast'
 
+interface CongOption { id: string; name: string; city: string | null }
+
 export function RequestAccessPage() {
   const navigate = useNavigate()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
-  const [congregationName, setCongregationName] = useState('')
+  const [congregationId, setCongregationId] = useState('')
+  const [requestedRole, setRequestedRole] = useState<'admin_congregation' | 'captain'>('admin_congregation')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -18,23 +21,33 @@ export function RequestAccessPage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [congregations, setCongregations] = useState<CongOption[]>([])
+  const [congLoading, setCongLoading] = useState(true)
+  const [submittedEmail, setSubmittedEmail] = useState('')
+
+  useEffect(() => {
+    supabase.from('congregations').select('id, name, city').order('name').then(({ data }) => {
+      setCongregations(data ?? [])
+      setCongLoading(false)
+    })
+  }, [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (password.length < 8) {
-      toast.error('A senha deve ter no mínimo 8 caracteres')
-      return
-    }
-    if (password !== confirmPassword) {
-      toast.error('As senhas não coincidem')
-      return
-    }
+    if (!congregationId) { toast.error('Selecione sua congregação'); return }
+    if (password.length < 8) { toast.error('A senha deve ter no mínimo 8 caracteres'); return }
+    if (password !== confirmPassword) { toast.error('As senhas não coincidem'); return }
+
+    const selectedCong = congregations.find(c => c.id === congregationId)
+
     setLoading(true)
     try {
       const { error } = await supabase.from('access_requests').insert({
         full_name: fullName.trim(),
         email: email.trim().toLowerCase(),
-        congregation_name: congregationName.trim(),
+        congregation_name: selectedCong ? `${selectedCong.name}${selectedCong.city ? ` - ${selectedCong.city}` : ''}` : '',
+        congregation_id: congregationId,
+        requested_role: requestedRole,
         phone: phone.trim() || null,
         password_temp: password,
         status: 'pending',
@@ -49,6 +62,7 @@ export function RequestAccessPage() {
         return
       }
 
+      setSubmittedEmail(email.trim().toLowerCase())
       setSubmitted(true)
     } catch {
       toast.error('Erro ao enviar solicitação. Tente novamente.')
@@ -56,6 +70,8 @@ export function RequestAccessPage() {
       setLoading(false)
     }
   }
+
+  const selectedCong = congregations.find(c => c.id === congregationId)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 dark:from-stone-900 dark:via-stone-900 dark:to-stone-800 p-4">
@@ -84,12 +100,14 @@ export function RequestAccessPage() {
               <div className="text-center">
                 <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100">Solicitação Enviada!</h2>
                 <p className="text-sm text-stone-500 mt-2 leading-relaxed">
-                  Sua solicitação foi recebida e está aguardando aprovação do Administrador Geral.
+                  {requestedRole === 'captain'
+                    ? 'Sua solicitação foi enviada ao administrador da congregação e ao SuperAdmin.'
+                    : 'Sua solicitação foi recebida e aguarda aprovação do Administrador Geral.'}
                 </p>
               </div>
               <div className="w-full p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-700 text-center">
                 <p className="text-xs text-amber-700 dark:text-amber-400 font-medium mb-1">Quando aprovado, acesse com:</p>
-                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">{email}</p>
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">{submittedEmail}</p>
                 <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">e a senha que você definiu</p>
               </div>
               <Button variant="outline" onClick={() => navigate('/login')} icon={<ArrowLeft className="w-4 h-4" />} className="w-full">
@@ -107,13 +125,36 @@ export function RequestAccessPage() {
                   required
                   autoComplete="name"
                 />
-                <Input
-                  label="Congregação *"
-                  value={congregationName}
-                  onChange={e => setCongregationName(e.target.value)}
-                  placeholder="Nome da sua congregação"
-                  required
-                />
+
+                {/* Congregation dropdown */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                    Congregação <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={congregationId}
+                      onChange={e => setCongregationId(e.target.value)}
+                      required
+                      disabled={congLoading}
+                      className="w-full appearance-none px-4 py-3 pr-10 rounded-xl border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
+                    >
+                      <option value="">{congLoading ? 'Carregando...' : 'Selecione sua congregação...'}</option>
+                      {congregations.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}{c.city ? ` - ${c.city}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+                  </div>
+                  {selectedCong && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5 pl-1">
+                      ✓ {selectedCong.name}{selectedCong.city ? ` — ${selectedCong.city}` : ''}
+                    </p>
+                  )}
+                </div>
+
                 <Input
                   label="E-mail *"
                   type="email"
@@ -124,13 +165,43 @@ export function RequestAccessPage() {
                   autoComplete="email"
                 />
                 <Input
-                  label="Telefone (opcional)"
+                  label="Telefone *"
                   type="tel"
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
                   placeholder="(00) 00000-0000"
+                  required
                   autoComplete="tel"
                 />
+
+                {/* Role selector */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                    Tipo de Acesso <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { value: 'admin_congregation', label: 'Adm. Congregação', desc: 'Gerencia veículos e passageiros' },
+                      { value: 'captain',            label: 'Capitão',           desc: 'Controla o embarque no veículo' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setRequestedRole(opt.value)}
+                        className={`p-3 rounded-xl border-2 text-left transition-all ${
+                          requestedRole === opt.value
+                            ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
+                            : 'border-stone-200 dark:border-stone-600 hover:border-amber-200'
+                        }`}
+                      >
+                        <p className={`text-xs font-semibold ${requestedRole === opt.value ? 'text-amber-700 dark:text-amber-400' : 'text-stone-600 dark:text-stone-300'}`}>
+                          {opt.label}
+                        </p>
+                        <p className="text-[10px] text-stone-400 mt-0.5 leading-tight">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="pt-1 border-t border-stone-100 dark:border-stone-700">
                   <p className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-3">

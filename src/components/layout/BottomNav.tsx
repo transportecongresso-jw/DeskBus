@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Bus, Users, ClipboardList,
   Building2, BarChart3, Settings, MoreHorizontal,
   Search, Shield, Star, Receipt, Truck, UserCog,
-  Bell, CheckCircle2, CalendarDays, X, LogOut, Moon, Sun
+  Bell, CheckCircle2, CalendarDays, X, LogOut, Moon, Sun, Anchor
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -20,7 +20,7 @@ interface NavItem {
 }
 
 export function BottomNav() {
-  const { isAdminGeneral, signOut } = useAuth()
+  const { isAdminGeneral, isCapitan, signOut } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -37,7 +37,9 @@ export function BottomNav() {
   }
 
   // ── Main items (always visible in bottom bar) ──
-  const mainItems: NavItem[] = isAdminGeneral ? [
+  const mainItems: NavItem[] = isCapitan ? [
+    { to: '/captain', icon: <Anchor className="w-5 h-5" />, label: 'Embarque' },
+  ] : isAdminGeneral ? [
     { to: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Painel' },
     { to: '/congregations', icon: <Building2 className="w-5 h-5" />, label: 'Congr.' },
     { to: '/vehicles', icon: <Bus className="w-5 h-5" />, label: 'Veículos' },
@@ -50,7 +52,9 @@ export function BottomNav() {
   ]
 
   // ── Extra items (inside "Mais" sheet) ──
-  const extraItems: NavItem[] = isAdminGeneral ? [
+  const extraItems: NavItem[] = isCapitan ? [
+    { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Configurações' },
+  ] : isAdminGeneral ? [
     { to: '/passengers', icon: <Users className="w-5 h-5" />, label: 'Passageiros' },
     { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Disponibilidade' },
     { to: '/search', icon: <Search className="w-5 h-5" />, label: 'Pesquisa' },
@@ -64,6 +68,7 @@ export function BottomNav() {
     { to: '/audit', icon: <Shield className="w-5 h-5" />, label: 'Auditoria' },
     { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Configurações' },
   ] : [
+    { to: '/access-requests', icon: <Bell className="w-5 h-5" />, label: 'Solicitações', badge: pendingRequests },
     { to: '/availability', icon: <BarChart3 className="w-5 h-5" />, label: 'Disponibilidade' },
     { to: '/search', icon: <Search className="w-5 h-5" />, label: 'Pesquisa' },
     { to: '/ratings', icon: <Star className="w-5 h-5" />, label: 'Avaliações' },

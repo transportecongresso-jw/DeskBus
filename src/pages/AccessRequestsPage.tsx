@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ClipboardList, Check, X, Clock, Building2, Phone, Mail, RefreshCw, ShieldCheck } from 'lucide-react'
+import { ClipboardList, Check, X, Clock, Building2, Phone, Mail, RefreshCw, ShieldCheck, Anchor, Info } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { Congregation } from '../types'
@@ -11,6 +11,7 @@ import { Modal } from '../components/ui/Modal'
 import { Select } from '../components/ui/Select'
 import { Spinner } from '../components/ui/Spinner'
 import { logAction } from '../lib/audit'
+import { playSound } from '../lib/sounds'
 import toast from 'react-hot-toast'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
@@ -29,6 +30,8 @@ interface AccessRequest {
   full_name: string
   email: string
   congregation_name: string
+  congregation_id: string | null
+  requested_role: string | null
   phone: string | null
   notes: string | null
   password_temp: string | null
@@ -39,8 +42,18 @@ interface AccessRequest {
   created_at: string
 }
 
+function roleLabel(role: string | null) {
+  if (role === 'captain') return 'Capitão'
+  return 'Adm. Congregação'
+}
+
+function roleBadge(role: string | null) {
+  if (role === 'captain') return <Badge variant="neutral"><Anchor className="w-3 h-3 mr-1" />Capitão</Badge>
+  return <Badge variant="info">Adm. Congregação</Badge>
+}
+
 export function AccessRequestsPage() {
-  const { user } = useAuth()
+  const { user, isAdminGeneral, congregationIds } = useAuth()
   const [requests, setRequests] = useState<AccessRequest[]>([])
   const [congregations, setCongregations] = useState<Congregation[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,7 +66,7 @@ export function AccessRequestsPage() {
   const [selectedRole, setSelectedRole] = useState('admin_congregation')
   const [rejectionReason, setRejectionReason] = useState('')
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [congregationIds, isAdminGeneral])
 
   async function loadData() {
     setLoading(true)
@@ -61,23 +74,36 @@ export function AccessRequestsPage() {
       supabase.from('access_requests').select('*').order('created_at', { ascending: false }),
       supabase.from('congregations').select('*').order('name'),
     ])
-    setRequests(reqs ?? [])
     setCongregations(congs ?? [])
+
+    // Congregation admins only see requests from their own congregations
+    const allReqs = reqs ?? []
+    if (isAdminGeneral) {
+      setRequests(allReqs)
+    } else {
+      setRequests(allReqs.filter(r => r.congregation_id && congregationIds.includes(r.congregation_id)))
+    }
     setLoading(false)
   }
 
+  // Whether the current user can approve a given request
+  function canApprove(req: AccessRequest): boolean {
+    if (isAdminGeneral) return true
+    // Congregation admins can only approve captain requests for their congregations
+    if (req.requested_role === 'captain' && req.congregation_id && congregationIds.includes(req.congregation_id)) return true
+    return false
+  }
+
   async function handleApprove() {
-    if (!approveModal || !selectedCongId) {
-      toast.error('Selecione a congregação')
-      return
-    }
-    if (!SERVICE_ROLE_KEY) {
-      toast.error('Chave de serviço não configurada. Verifique as variáveis de ambiente.')
-      return
-    }
+    if (!approveModal) return
+    const congId = selectedCongId || approveModal.congregation_id || ''
+    if (!congId) { toast.error('Selecione a congregação'); return }
+    if (!SERVICE_ROLE_KEY) { toast.error('Chave de serviço não configurada.'); return }
+
     setApproving(true)
     try {
-      // Create user in Supabase Auth with the password they set — no email confirmation
+      const role = isAdminGeneral ? selectedRole : (approveModal.requested_role ?? 'captain')
+
       const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
         method: 'POST',
         headers: adminHeaders(),
@@ -89,26 +115,18 @@ export function AccessRequestsPage() {
         }),
       })
       const userData = await res.json()
-      if (!res.ok) {
-        throw new Error(userData.message ?? 'Erro ao criar usuário')
-      }
+      if (!res.ok) throw new Error(userData.message ?? 'Erro ao criar usuário')
 
       const userId = userData.id
 
-      // Update profile: set name, phone, role
       await supabase.from('profiles').update({
         full_name: approveModal.full_name,
         phone: approveModal.phone || null,
-        role: selectedRole,
+        role,
       }).eq('id', userId)
 
-      // Link to congregation
-      await supabase.from('congregation_admins').insert({
-        user_id: userId,
-        congregation_id: selectedCongId,
-      })
+      await supabase.from('congregation_admins').insert({ user_id: userId, congregation_id: congId })
 
-      // Mark request approved and clear password
       await supabase.from('access_requests').update({
         status: 'approved',
         password_temp: null,
@@ -117,18 +135,20 @@ export function AccessRequestsPage() {
       }).eq('id', approveModal.id)
 
       await logAction({
-        congregationId: selectedCongId,
+        congregationId: congId,
         actionType: 'access_request_approved',
-        description: `Solicitação de "${approveModal.full_name}" (${approveModal.email}) aprovada como ${selectedRole === 'admin_general' ? 'SuperAdmin' : 'Admin. Congregação'}`,
+        description: `Solicitação de "${approveModal.full_name}" (${approveModal.email}) aprovada como ${roleLabel(role)}`,
         performedBy: user!.id,
       })
 
+      playSound('success')
       toast.success(`Acesso criado para ${approveModal.email}`)
       setApproveModal(null)
       setSelectedCongId('')
       setSelectedRole('admin_congregation')
       loadData()
     } catch (err: any) {
+      playSound('error')
       toast.error(err.message ?? 'Erro ao aprovar solicitação')
     } finally {
       setApproving(false)
@@ -147,6 +167,7 @@ export function AccessRequestsPage() {
         reviewed_at: new Date().toISOString(),
       }).eq('id', rejectModal.id)
 
+      playSound('error')
       toast.success('Solicitação rejeitada')
       setRejectModal(null)
       setRejectionReason('')
@@ -171,7 +192,7 @@ export function AccessRequestsPage() {
     <div className="animate-fade-in">
       <PageHeader
         title="Solicitações de Acesso"
-        subtitle="Gerencie pedidos de acesso ao sistema"
+        subtitle={isAdminGeneral ? 'Gerencie pedidos de acesso ao sistema' : 'Pedidos de acesso para sua congregação'}
         icon={<ClipboardList className="w-6 h-6" />}
         actions={
           <Button variant="outline" icon={<RefreshCw className="w-4 h-4" />} onClick={loadData}>
@@ -179,6 +200,17 @@ export function AccessRequestsPage() {
           </Button>
         }
       />
+
+      {/* Info banner for congregation admins */}
+      {!isAdminGeneral && (
+        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-2xl flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+            Você pode aprovar ou rejeitar solicitações de <strong>Capitão</strong> para sua congregação.
+            Solicitações de <strong>Administrador</strong> são aprovadas exclusivamente pelo SuperAdmin.
+          </p>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
@@ -219,63 +251,77 @@ export function AccessRequestsPage() {
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-stone-100 dark:divide-stone-700">
-            {filtered.map(req => (
-              <div key={req.id} className="py-4">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <p className="font-semibold text-stone-800 dark:text-stone-100">{req.full_name}</p>
-                      {statusBadge(req.status)}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
-                        <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span className="truncate">{req.email}</span>
+            {filtered.map(req => {
+              const approvable = canApprove(req)
+              return (
+                <div key={req.id} className="py-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <p className="font-semibold text-stone-800 dark:text-stone-100">{req.full_name}</p>
+                        {statusBadge(req.status)}
+                        {roleBadge(req.requested_role)}
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
-                        <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>{req.congregation_name}</span>
-                      </div>
-                      {req.phone && (
+                      <div className="space-y-1">
                         <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
-                          <Phone className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{req.phone}</span>
+                          <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">{req.email}</span>
                         </div>
-                      )}
-                      {req.rejection_reason && (
-                        <div className="mt-1 px-2 py-1.5 bg-rose-50 dark:bg-rose-900/20 rounded-lg text-xs text-rose-600 dark:text-rose-400">
-                          Motivo: {req.rejection_reason}
+                        <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
+                          <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{req.congregation_name || '—'}</span>
                         </div>
-                      )}
+                        {req.phone && (
+                          <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
+                            <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>{req.phone}</span>
+                          </div>
+                        )}
+                        {req.rejection_reason && (
+                          <div className="mt-1 px-2 py-1.5 bg-rose-50 dark:bg-rose-900/20 rounded-lg text-xs text-rose-600 dark:text-rose-400">
+                            Motivo: {req.rejection_reason}
+                          </div>
+                        )}
+                        {/* Congregation admins: view-only notice for admin requests */}
+                        {!isAdminGeneral && req.requested_role !== 'captain' && req.status === 'pending' && (
+                          <div className="mt-1 px-2 py-1.5 bg-stone-50 dark:bg-stone-700 rounded-lg text-xs text-stone-500">
+                            Aprovação exclusiva do SuperAdmin
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-stone-400 mt-2 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(req.created_at).toLocaleString('pt-BR')}
+                      </p>
                     </div>
-                    <p className="text-xs text-stone-400 mt-2 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {new Date(req.created_at).toLocaleString('pt-BR')}
-                    </p>
-                  </div>
 
-                  {req.status === 'pending' && (
-                    <div className="flex gap-2 flex-shrink-0 flex-wrap">
-                      <Button
-                        size="sm"
-                        icon={<Check className="w-4 h-4" />}
-                        onClick={() => { setApproveModal(req); setSelectedCongId(''); setSelectedRole('admin_congregation') }}
-                      >
-                        Aprovar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        icon={<X className="w-4 h-4" />}
-                        onClick={() => { setRejectModal(req); setRejectionReason('') }}
-                      >
-                        Rejeitar
-                      </Button>
-                    </div>
-                  )}
+                    {req.status === 'pending' && approvable && (
+                      <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                        <Button
+                          size="sm"
+                          icon={<Check className="w-4 h-4" />}
+                          onClick={() => {
+                            setApproveModal(req)
+                            setSelectedCongId(req.congregation_id ?? '')
+                            setSelectedRole(req.requested_role ?? 'admin_congregation')
+                          }}
+                        >
+                          Aprovar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          icon={<X className="w-4 h-4" />}
+                          onClick={() => { setRejectModal(req); setRejectionReason('') }}
+                        >
+                          Rejeitar
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </Card>
@@ -294,7 +340,7 @@ export function AccessRequestsPage() {
             <Button
               onClick={handleApprove}
               loading={approving}
-              disabled={!selectedCongId}
+              disabled={!selectedCongId && !approveModal?.congregation_id}
               className="flex-1"
               icon={<ShieldCheck className="w-4 h-4" />}
             >
@@ -308,31 +354,36 @@ export function AccessRequestsPage() {
             <div className="p-4 bg-stone-50 dark:bg-stone-700/50 rounded-xl">
               <p className="text-sm font-semibold text-stone-800 dark:text-stone-100">{approveModal.full_name}</p>
               <p className="text-xs text-stone-500 mt-0.5">{approveModal.email}</p>
-              <p className="text-xs text-stone-400 mt-0.5">Congregação solicitada: {approveModal.congregation_name}</p>
+              <p className="text-xs text-stone-400 mt-0.5">Congregação: {approveModal.congregation_name}</p>
+              <div className="mt-1">{roleBadge(approveModal.requested_role)}</div>
             </div>
 
-            <Select
-              label="Vincular à Congregação *"
-              value={selectedCongId}
-              onChange={e => setSelectedCongId(e.target.value)}
-              options={[
-                { value: '', label: 'Selecione a congregação...' },
-                ...congregations.map(c => ({ value: c.id, label: `${c.name}${c.city ? ` · ${c.city}` : ''}` })),
-              ]}
-            />
-
-            <Select
-              label="Perfil de Acesso"
-              value={selectedRole}
-              onChange={e => setSelectedRole(e.target.value)}
-              options={[
-                { value: 'admin_congregation', label: 'Administrador de Congregação' },
-              ]}
-            />
+            {isAdminGeneral && (
+              <>
+                <Select
+                  label="Vincular à Congregação *"
+                  value={selectedCongId}
+                  onChange={e => setSelectedCongId(e.target.value)}
+                  options={[
+                    { value: '', label: 'Selecione a congregação...' },
+                    ...congregations.map(c => ({ value: c.id, label: `${c.name}${c.city ? ` · ${c.city}` : ''}` })),
+                  ]}
+                />
+                <Select
+                  label="Perfil de Acesso"
+                  value={selectedRole}
+                  onChange={e => setSelectedRole(e.target.value)}
+                  options={[
+                    { value: 'admin_congregation', label: 'Administrador de Congregação' },
+                    { value: 'captain', label: 'Capitão' },
+                  ]}
+                />
+              </>
+            )}
 
             <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-700">
               <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
-                O usuário será criado imediatamente. Poderá acessar o sistema com o e-mail e a senha que ele mesmo definiu na solicitação.
+                O usuário será criado imediatamente e poderá acessar o sistema com o e-mail e a senha que definiu.
               </p>
             </div>
           </div>

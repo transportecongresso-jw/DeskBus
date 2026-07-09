@@ -1,4 +1,4 @@
-export type UserRole = 'admin_general' | 'admin_congregation'
+export type UserRole = 'admin_general' | 'admin_congregation' | 'captain'
 
 export type EventStatus = 'active' | 'closed' | 'cancelled'
 
@@ -210,6 +210,37 @@ export interface Invoice {
   reviewed_by: string | null
   reviewed_at: string | null
   uploaded_by: string | null
+  created_at: string
+}
+
+export type TripStatus = 'not_started' | 'boarding' | 'departed' | 'arrived' | 'return_departed' | 'return_arrived'
+
+export interface VehicleTrip {
+  id: string
+  vehicle_id: string
+  event_id: string | null
+  captain_id: string | null
+  congregation_id: string | null
+  status: TripStatus
+  boarding_started_at: string | null
+  departed_at: string | null
+  arrived_at: string | null
+  return_departed_at: string | null
+  return_arrived_at: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Notification {
+  id: string
+  user_id: string
+  title: string
+  message: string
+  type: 'info' | 'warning' | 'success'
+  read: boolean
+  related_vehicle_id: string | null
+  congregation_id: string | null
   created_at: string
 }
 

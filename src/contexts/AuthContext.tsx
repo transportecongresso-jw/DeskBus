@@ -11,6 +11,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   isAdminGeneral: boolean
+  isCapitan: boolean
   congregationIds: string[]
 }
 
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signOut,
       isAdminGeneral: profile?.role === 'admin_general',
+      isCapitan: profile?.role === 'captain',
       congregationIds,
     }}>
       {children}
