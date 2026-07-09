@@ -133,9 +133,26 @@ export function AccessRequestsPage() {
         }),
       })
       const userData = await res.json()
-      if (!res.ok) throw new Error(userData.message ?? 'Erro ao criar usuário')
 
-      const userId = userData.id
+      let userId: string
+      if (!res.ok) {
+        const errCode = userData.error_code ?? ''
+        // Email já existe: busca o usuário existente e reaproveita
+        if (errCode === 'email_exists' || res.status === 422) {
+          const listRes = await fetch(
+            `${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(approveModal.email)}`,
+            { headers: adminHeaders() }
+          )
+          const listData = await listRes.json()
+          const existing = listData?.users?.[0]
+          if (!existing) throw new Error(userData.msg ?? userData.message ?? 'Email já cadastrado — usuário não encontrado')
+          userId = existing.id
+        } else {
+          throw new Error(userData.msg ?? userData.message ?? 'Erro ao criar usuário')
+        }
+      } else {
+        userId = userData.id
+      }
 
       // Best-effort profile update (phone + extra fields). Role is already set by trigger.
       // May be a no-op for congregation admins due to RLS, but that's fine — role is correct.
