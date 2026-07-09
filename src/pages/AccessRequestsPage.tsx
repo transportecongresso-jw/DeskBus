@@ -163,8 +163,7 @@ export function AccessRequestsPage() {
       }).eq('id', userId)
 
       const { error: caError } = await supabase
-        .from('congregation_admins')
-        .insert({ user_id: userId, congregation_id: congId })
+        .rpc('link_user_to_congregation', { p_user_id: userId, p_congregation_id: congId })
       if (caError) throw new Error(`Erro ao vincular congregação: ${caError.message}`)
 
       await supabase.from('access_requests').update({
