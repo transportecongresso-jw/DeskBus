@@ -26,6 +26,7 @@ import { AvailabilityPage } from './pages/AvailabilityPage'
 import { RequestAccessPage } from './pages/RequestAccessPage'
 import { AccessRequestsPage } from './pages/AccessRequestsPage'
 import { CaptainPage } from './pages/CaptainPage'
+import { ChangelogPage } from './pages/ChangelogPage'
 import { PageSpinner } from './components/ui/Spinner'
 
 const queryClient = new QueryClient()
@@ -67,6 +68,7 @@ function AppRoutes() {
         <Route path="availability" element={<AvailabilityPage />} />
         <Route path="ratings" element={<RatingsPage />} />
         <Route path="invoices" element={<InvoicesPage />} />
+        <Route path="changelog" element={<ChangelogPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

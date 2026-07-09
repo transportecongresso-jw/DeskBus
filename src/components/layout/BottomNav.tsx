@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Bus, Users, ClipboardList,
   Building2, BarChart3, Settings, MoreHorizontal,
   Search, Shield, Star, Receipt, Truck, UserCog,
-  Bell, CheckCircle2, CalendarDays, X, LogOut, Moon, Sun, Anchor
+  Bell, CheckCircle2, CalendarDays, X, LogOut, Moon, Sun, Anchor, Sparkles
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -53,6 +53,7 @@ export function BottomNav() {
 
   // ── Extra items (inside "Mais" sheet) ──
   const extraItems: NavItem[] = isCapitan ? [
+    { to: '/changelog', icon: <Sparkles className="w-5 h-5" />, label: 'Atualizações' },
     { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Configurações' },
   ] : isAdminGeneral ? [
     { to: '/passengers', icon: <Users className="w-5 h-5" />, label: 'Passageiros' },
@@ -66,6 +67,7 @@ export function BottomNav() {
     { to: '/ratings', icon: <Star className="w-5 h-5" />, label: 'Avaliações' },
     { to: '/invoices', icon: <Receipt className="w-5 h-5" />, label: 'Notas Fiscais' },
     { to: '/audit', icon: <Shield className="w-5 h-5" />, label: 'Auditoria' },
+    { to: '/changelog', icon: <Sparkles className="w-5 h-5" />, label: 'Atualizações' },
     { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Configurações' },
   ] : [
     { to: '/access-requests', icon: <Bell className="w-5 h-5" />, label: 'Solicitações', badge: pendingRequests },
@@ -74,6 +76,7 @@ export function BottomNav() {
     { to: '/ratings', icon: <Star className="w-5 h-5" />, label: 'Avaliações' },
     { to: '/invoices', icon: <Receipt className="w-5 h-5" />, label: 'Notas Fiscais' },
     { to: '/audit', icon: <Shield className="w-5 h-5" />, label: 'Auditoria' },
+    { to: '/changelog', icon: <Sparkles className="w-5 h-5" />, label: 'Atualizações' },
     { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Configurações' },
   ]
 

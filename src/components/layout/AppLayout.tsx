@@ -2,8 +2,12 @@ import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { MobileEventHeader } from './MobileEventHeader'
+import { PatchNotesModal } from '../PatchNotesModal'
+import { usePatchNotes } from '../../hooks/usePatchNotes'
 
 export function AppLayout() {
+  const { unseen, ready, dismissAll } = usePatchNotes()
+
   return (
     <div className="flex h-screen overflow-hidden bg-stone-50 dark:bg-stone-950">
       {/* Sidebar — hidden on mobile, visible on lg+ */}
@@ -23,6 +27,11 @@ export function AppLayout() {
 
       {/* Bottom nav — mobile only */}
       <BottomNav />
+
+      {/* Patch notes pop-up — shown once per new version */}
+      {ready && unseen.length > 0 && (
+        <PatchNotesModal notes={unseen} onDismiss={dismissAll} />
+      )}
     </div>
   )
 }

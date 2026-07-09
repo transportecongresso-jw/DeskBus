@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Bus, Users, Building2, LayoutDashboard, Search,
-  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield, CalendarDays, Star, Receipt, Truck, UserCog, BarChart3, Bell, Anchor
+  LogOut, Moon, Sun, ClipboardList, Settings, ChevronLeft, ChevronRight, CheckCircle2, Shield, CalendarDays, Star, Receipt, Truck, UserCog, BarChart3, Bell, Anchor, Sparkles
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -34,6 +34,7 @@ const navItems: NavItem[] = [
   { to: '/ratings', icon: <Star className="w-5 h-5" />, label: 'Avaliações' },
   { to: '/invoices', icon: <Receipt className="w-5 h-5" />, label: 'Notas Fiscais' },
   { to: '/audit', icon: <Shield className="w-5 h-5" />, label: 'Auditoria' },
+  { to: '/changelog', icon: <Sparkles className="w-5 h-5" />, label: 'Atualizações' },
   { to: '/settings', icon: <Settings className="w-5 h-5" />, label: 'Configurações' },
 ]
 
