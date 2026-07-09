@@ -73,36 +73,11 @@ export function CaptainsPage() {
       const congIdList = (congs ?? []).map(c => c.id)
       if (congIdList.length === 0) { setLoading(false); return }
 
-      // 2. Links capitão → congregação
-      const { data: links, error: linkError } = await supabase
-        .from('congregation_admins')
-        .select('user_id, congregation_id')
-        .in('congregation_id', congIdList)
-      if (linkError) throw linkError
-
-      const captainUserIds = [...new Set((links ?? []).map(l => l.user_id))]
-
-      // 3. Perfis dos capitães
-      let captainProfiles: Captain[] = []
-      if (captainUserIds.length > 0) {
-        const { data: profiles, error: profError } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, phone')
-          .in('id', captainUserIds)
-          .eq('role', 'captain')
-        if (profError) throw profError
-
-        const captainCongMap: Record<string, string> = {}
-        ;(links ?? []).forEach(l => {
-          if (!captainCongMap[l.user_id]) captainCongMap[l.user_id] = l.congregation_id
-        })
-
-        captainProfiles = (profiles ?? []).map(p => ({
-          ...p,
-          congregation_id: captainCongMap[p.id] ?? '',
-        }))
-      }
-      setCaptains(captainProfiles)
+      // 2+3. Capitães via RPC (evita RLS recursivo em congregation_admins + profiles)
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_captains_for_my_congregations')
+      if (rpcError) throw rpcError
+      setCaptains(rpcData ?? [])
 
       // 4. Veículos
       const { data: vehData, error: vehError } = await supabase
