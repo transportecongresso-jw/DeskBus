@@ -25,8 +25,18 @@ interface VehicleWithStats extends Vehicle {
 
 const CAPACITY_OPTIONS = {
   bus: [40, 42, 44, 46, 48, 50, 52, 54],
-  van: [10, 12, 15, 16, 18, 20],
+  van: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
   microbus: [28, 30, 32],
+}
+
+// Returns row/column for a seat number given the vehicle type layout.
+// Van uses 2+1 (3 cols per row); bus/microbus use 2+2 (4 cols per row).
+function seatPosition(seatNum: number, vehicleType: VehicleType) {
+  const cols = vehicleType === 'van' ? 3 : 4
+  return {
+    row_number: Math.ceil(seatNum / cols),
+    column_position: ((seatNum - 1) % cols) + 1,
+  }
 }
 
 export function VehiclesPage() {
@@ -375,8 +385,7 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
               return {
                 vehicle_id: editing.id,
                 seat_number: seatNum,
-                row_number: Math.ceil(seatNum / 4),
-                column_position: ((seatNum - 1) % 4) + 1,
+                ...seatPosition(seatNum, type),
                 is_driver: false,
               }
             })
@@ -394,8 +403,7 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
         const seats = Array.from({ length: capacity }, (_, i) => ({
           vehicle_id: vehicle.id,
           seat_number: i + 1,
-          row_number: Math.ceil((i + 1) / 4),
-          column_position: (i % 4) + 1,
+          ...seatPosition(i + 1, type),
           is_driver: false,
         }))
         await supabase.from('seats').insert(seats)
@@ -460,7 +468,7 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1.5">
             <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Tipo de Veículo <span className="text-rose-500">*</span></label>
-            <HelpIcon content="Ônibus (40–54 lugares), Micro-ônibus (28–32 lugares) ou Van (10–20 lugares)." />
+            <HelpIcon content="Ônibus (40–54 lugares, layout 2+2), Micro-ônibus (28–32 lugares, layout 2+2) ou Van (9–20 lugares, layout 2+1)." />
           </div>
           <div className="grid grid-cols-3 gap-3">
             {(['bus', 'microbus', 'van'] as VehicleType[]).map(t => (
@@ -480,7 +488,7 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
 
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Capacidade <span className="text-rose-500">*</span></label>
-          <div className="grid grid-cols-4 gap-2">
+          <div className={`grid gap-2 ${type === 'van' ? 'grid-cols-6' : 'grid-cols-4'}`}>
             {capacities.map(cap => (
               <button key={cap} type="button" onClick={() => setCapacity(cap)}
                 className={`py-2 rounded-xl border-2 text-sm font-medium transition-all cursor-pointer ${
