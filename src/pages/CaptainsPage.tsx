@@ -73,9 +73,9 @@ export function CaptainsPage() {
       const congIdList = (congs ?? []).map(c => c.id)
       if (congIdList.length === 0) { setLoading(false); return }
 
-      // 2+3. Capitães via RPC (evita RLS recursivo em congregation_admins + profiles)
+      // 2+3. Capitães via RPC (SECURITY DEFINER bypassa RLS; IDs vêm do frontend)
       const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_captains_for_my_congregations')
+        .rpc('get_captains_for_congregations', { p_congregation_ids: congIdList })
       if (rpcError) throw rpcError
       setCaptains(rpcData ?? [])
 
