@@ -145,7 +145,10 @@ export function AccessRequestsPage() {
         role,
       }).eq('id', userId)
 
-      await supabase.from('congregation_admins').insert({ user_id: userId, congregation_id: congId })
+      const { error: caError } = await supabase
+        .from('congregation_admins')
+        .insert({ user_id: userId, congregation_id: congId })
+      if (caError) throw new Error(`Erro ao vincular congregação: ${caError.message}`)
 
       await supabase.from('access_requests').update({
         status: 'approved',
