@@ -12,17 +12,17 @@ interface SeatMapProps {
 }
 
 export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlightPassenger, captainPassengerIds }: SeatMapProps) {
-  // Group seats by row
-  const rows = seats.reduce<Record<number, SeatWithAssignment[]>>((acc, seat) => {
-    const row = seat.row_number
-    if (!acc[row]) acc[row] = []
-    acc[row].push(seat)
-    acc[row].sort((a, b) => a.column_position - b.column_position)
-    return acc
-  }, {})
+  // Van: 2+1 (3 per row). Bus/microbus: 2+2 (4 per row).
+  // Group purely by seat_number to avoid DB row_number/column_position inconsistencies.
+  const seatsPerRow = vehicleType === 'van' ? 3 : 4
+  const leftCount = 2
+  const rightCount = vehicleType === 'van' ? 1 : 2
 
-  const sortedRows = Object.keys(rows).map(Number).sort((a, b) => a - b)
-  const cols = vehicleType === 'van' ? 3 : 4  // bus e microbus usam layout 2+2
+  const sortedSeats = [...seats].sort((a, b) => a.seat_number - b.seat_number)
+  const rowGroups: SeatWithAssignment[][] = []
+  for (let i = 0; i < sortedSeats.length; i += seatsPerRow) {
+    rowGroups.push(sortedSeats.slice(i, i + seatsPerRow))
+  }
 
   return (
     <div className="overflow-x-auto">
@@ -42,34 +42,29 @@ export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlig
         </div>
 
         {/* Aisle indicator */}
-        <div className={`grid gap-2 mb-2 text-[10px] text-stone-400 text-center`}
-          style={{ gridTemplateColumns: cols === 4 ? '1fr 1fr auto 1fr 1fr' : '1fr 1fr auto 1fr' }}>
+        <div className="grid gap-2 mb-2 text-[10px] text-stone-400 text-center"
+          style={{ gridTemplateColumns: rightCount === 2 ? '1fr 1fr auto 1fr 1fr' : '1fr 1fr auto 1fr' }}>
           <span>Jan.</span>
           <span>Jan.</span>
           <span className="w-6" />
           <span>Jan.</span>
-          {cols === 4 && <span>Jan.</span>}
+          {rightCount === 2 && <span>Jan.</span>}
         </div>
 
         {/* Seat rows */}
         <div className="flex flex-col gap-2">
-          {sortedRows.map(rowNum => {
-            const rowSeats = rows[rowNum]
-            // Split into left and right groups for bus (2+2) or van (2+1)
-            const leftCount = 2
-            const rightCount = cols === 4 ? 2 : 1
+          {rowGroups.map((rowSeats, rowIdx) => {
             const left = rowSeats.slice(0, leftCount)
-            const right = rowSeats.slice(leftCount, leftCount + rightCount)
+            const right = rowSeats.slice(leftCount)
 
             return (
-              <div key={rowNum} className="flex items-center gap-2">
+              <div key={rowIdx} className="flex items-center gap-2">
                 {/* Row number */}
-                <span className="text-xs text-stone-300 dark:text-stone-600 w-5 text-right flex-shrink-0">{rowNum}</span>
+                <span className="text-xs text-stone-300 dark:text-stone-600 w-5 text-right flex-shrink-0">{rowIdx + 1}</span>
 
                 {/* Left seats */}
-                <div className={`grid gap-1.5`} style={{ gridTemplateColumns: `repeat(${leftCount}, 1fr)` }}>
+                <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${leftCount}, 1fr)` }}>
                   {left.map(seat => <SeatCell key={seat.id} seat={seat} selected={selectedSeat === seat.id} highlighted={highlightPassenger ? seat.assignment?.passenger_id === highlightPassenger : false} isCaptain={captainPassengerIds ? captainPassengerIds.has(seat.assignment?.passenger_id ?? '') : false} onClick={() => onSeatClick(seat)} />)}
-                  {/* Fill empty slots */}
                   {Array.from({ length: Math.max(0, leftCount - left.length) }).map((_, i) => (
                     <div key={`empty-l-${i}`} className="w-10 h-10" />
                   ))}
@@ -81,7 +76,7 @@ export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlig
                 </div>
 
                 {/* Right seats */}
-                <div className={`grid gap-1.5`} style={{ gridTemplateColumns: `repeat(${rightCount}, 1fr)` }}>
+                <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${rightCount}, 1fr)` }}>
                   {right.map(seat => <SeatCell key={seat.id} seat={seat} selected={selectedSeat === seat.id} highlighted={highlightPassenger ? seat.assignment?.passenger_id === highlightPassenger : false} isCaptain={captainPassengerIds ? captainPassengerIds.has(seat.assignment?.passenger_id ?? '') : false} onClick={() => onSeatClick(seat)} />)}
                   {Array.from({ length: Math.max(0, rightCount - right.length) }).map((_, i) => (
                     <div key={`empty-r-${i}`} className="w-10 h-10" />

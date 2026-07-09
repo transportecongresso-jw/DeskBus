@@ -51,18 +51,15 @@ export function cn(...classes: (string | undefined | false | null)[]): string {
   return classes.filter(Boolean).join(' ')
 }
 
-export function generateSeats(vehicleId: string, capacity: number) {
+export function generateSeats(vehicleId: string, capacity: number, vehicleType: 'bus' | 'van' | 'microbus' = 'bus') {
+  const cols = vehicleType === 'van' ? 3 : 4
   const seats = []
-  // Layout: driver seat + passenger seats
-  // Bus layout: 2+2 columns (4 per row typically)
-  // Van layout: 2+1 columns (3 per row)
-  // We'll use a simple numbered approach
   for (let i = 1; i <= capacity; i++) {
     seats.push({
       vehicle_id: vehicleId,
       seat_number: i,
-      row_number: Math.ceil(i / 4),
-      column_position: ((i - 1) % 4) + 1,
+      row_number: Math.ceil(i / cols),
+      column_position: ((i - 1) % cols) + 1,
       is_driver: false,
     })
   }

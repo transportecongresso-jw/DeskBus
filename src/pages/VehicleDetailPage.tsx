@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Bus, Users, DollarSign, Download, ArrowLeft, AlertTriangle,
-  User, X, RefreshCw, CheckCircle2, Clock, FileSpreadsheet, FileText, Lock
+  User, X, RefreshCw, CheckCircle2, Clock, FileSpreadsheet, FileText, Lock, Anchor
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -41,6 +41,8 @@ export function VehicleDetailPage() {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showFinalizeModal, setShowFinalizeModal] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
+  const [captainPassengerIds, setCaptainPassengerIds] = useState<Set<string>>(new Set())
+
   const [moveConflict, setMoveConflict] = useState<{
     passengerId: string
     passengerName: string
@@ -61,6 +63,13 @@ export function VehicleDetailPage() {
 
     const { data: cong } = await supabase.from('congregations').select('*').eq('id', v.congregation_id).single()
     setCongregation(cong)
+
+    // Load captain passenger links for this congregation
+    const { data: captainLinks } = await supabase
+      .from('captain_passenger_links')
+      .select('passenger_id')
+      .eq('congregation_id', v.congregation_id)
+    setCaptainPassengerIds(new Set((captainLinks ?? []).map((l: any) => l.passenger_id)))
 
     // Load seats
     const { data: seatData, error: seatError } = await supabase
@@ -521,6 +530,7 @@ export function VehicleDetailPage() {
             vehicleType={vehicle.type}
             onSeatClick={handleSeatClick}
             selectedSeat={selectedSeat?.id}
+            captainPassengerIds={captainPassengerIds}
           />
         </Card>
 
@@ -545,9 +555,14 @@ export function VehicleDetailPage() {
                       <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{seat.seat_number}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-stone-700 dark:text-stone-200 truncate">
-                        {seat.assignment!.passenger?.full_name}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium text-stone-700 dark:text-stone-200 truncate">
+                          {seat.assignment!.passenger?.full_name}
+                        </p>
+                        {captainPassengerIds.has(seat.assignment!.passenger_id) && (
+                          <Anchor className="w-3 h-3 text-amber-500 flex-shrink-0" title="Capitão" />
+                        )}
+                      </div>
                       <p className="text-xs text-stone-400">
                         {formatDocumentType(seat.assignment!.passenger?.document_type!)} · {seat.assignment!.passenger?.document_number}
                       </p>
