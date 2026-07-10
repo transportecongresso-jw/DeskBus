@@ -716,9 +716,10 @@ export function CaptainPage() {
                       <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                       <button
                         onClick={() => updateBoarding(entry.assignmentId, 'pending')}
-                        className="p-1.5 rounded-lg text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+                        className="w-11 h-11 rounded-xl text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors flex items-center justify-center"
+                        title="Desfazer"
                       >
-                        <XCircle className="w-4 h-4" />
+                        <XCircle className="w-5 h-5" />
                       </button>
                     </div>
                   ) : entry.boardingStatus === 'not_boarded' ? (
@@ -726,9 +727,10 @@ export function CaptainPage() {
                       <XCircle className="w-5 h-5 text-rose-400" />
                       <button
                         onClick={() => updateBoarding(entry.assignmentId, 'pending')}
-                        className="p-1.5 rounded-lg text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+                        className="w-11 h-11 rounded-xl text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors flex items-center justify-center"
+                        title="Desfazer"
                       >
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-5 h-5" />
                       </button>
                     </div>
                   ) : (

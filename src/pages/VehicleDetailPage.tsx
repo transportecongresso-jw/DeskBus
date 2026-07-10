@@ -498,6 +498,8 @@ export function VehicleDetailPage() {
                   Exportar Lista
                 </Button>
                 {showExportMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
                   <div className="absolute right-0 top-10 bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-stone-100 dark:border-stone-700 py-2 z-20 min-w-48 animate-fade-in">
                     <button
                       onClick={() => handleExport('excel')}
@@ -521,6 +523,7 @@ export function VehicleDetailPage() {
                       Cancelar
                     </button>
                   </div>
+                  </>
                 )}
               </div>
             </div>

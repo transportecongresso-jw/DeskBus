@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Bus, Users, Building2, TrendingUp, ArrowRight,
-  CheckCircle2, Clock, FileText, CalendarDays
+  CheckCircle2, Clock, FileText, CalendarDays, RefreshCw
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -103,18 +103,27 @@ export function DashboardPage() {
   return (
     <div className="animate-fade-in space-y-5">
       {/* Greeting */}
-      <div>
-        <h1 className="text-2xl font-bold text-stone-800 dark:text-stone-100">
-          {greeting}, {profile?.full_name?.split(' ')[0] ?? 'Usuário'}!
-        </h1>
-        {selectedEvent ? (
-          <div className="flex items-center gap-1.5 mt-1">
-            <CalendarDays className="w-4 h-4 text-amber-500" />
-            <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">{selectedEvent.name}</p>
-          </div>
-        ) : (
-          <p className="text-sm text-stone-500 mt-0.5">Visão geral do sistema de transporte</p>
-        )}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-800 dark:text-stone-100">
+            {greeting}, {profile?.full_name?.split(' ')[0] ?? 'Usuário'}!
+          </h1>
+          {selectedEvent ? (
+            <div className="flex items-center gap-1.5 mt-1">
+              <CalendarDays className="w-4 h-4 text-amber-500" />
+              <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">{selectedEvent.name}</p>
+            </div>
+          ) : (
+            <p className="text-sm text-stone-500 mt-0.5">Visão geral do sistema de transporte</p>
+          )}
+        </div>
+        <button
+          onClick={loadDashboard}
+          className="p-2.5 rounded-xl text-stone-400 hover:text-stone-600 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors flex-shrink-0 mt-1"
+          title="Atualizar painel"
+        >
+          <RefreshCw className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Stats grid — 2 cols on mobile */}

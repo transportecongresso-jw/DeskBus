@@ -27,8 +27,14 @@ export function BottomNav() {
   const pendingRequests = usePendingRequests()
   const [moreOpen, setMoreOpen] = useState(false)
 
-  // Close "Mais" sheet on route change
+  // Close "Mais" sheet on route change or Android back button
   useEffect(() => { setMoreOpen(false) }, [location.pathname])
+  useEffect(() => {
+    if (!moreOpen) return
+    const handler = () => setMoreOpen(false)
+    window.addEventListener('popstate', handler)
+    return () => window.removeEventListener('popstate', handler)
+  }, [moreOpen])
 
   async function handleSignOut() {
     await signOut()
@@ -137,7 +143,7 @@ export function BottomNav() {
 
           {/* Sheet */}
           <div
-            className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-stone-900 rounded-t-2xl shadow-2xl lg:hidden"
+            className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-stone-900 rounded-t-2xl shadow-2xl lg:hidden max-h-[80dvh] flex flex-col"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             {/* Handle + header */}
@@ -163,7 +169,7 @@ export function BottomNav() {
             </div>
 
             {/* Grid of nav items */}
-            <div className="grid grid-cols-4 gap-1 px-3 pt-1 pb-2">
+            <div className="grid grid-cols-4 gap-1 px-3 pt-1 pb-2 overflow-y-auto flex-1">
               {extraItems.map(item => {
                 const isActive = location.pathname.startsWith(item.to)
                 return (

@@ -36,7 +36,7 @@ export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlig
 
         {/* Driver seat */}
         <div className="flex justify-end mb-2 pr-2">
-          <div className="w-10 h-10 bg-stone-300 dark:bg-stone-600 rounded-lg flex items-center justify-center" title="Motorista">
+          <div className="w-11 h-11 bg-stone-300 dark:bg-stone-600 rounded-lg flex items-center justify-center" title="Motorista">
             <span className="text-xs text-stone-500 dark:text-stone-400">M</span>
           </div>
         </div>
@@ -66,7 +66,7 @@ export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlig
                 <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${leftCount}, 1fr)` }}>
                   {left.map(seat => <SeatCell key={seat.id} seat={seat} selected={selectedSeat === seat.id} highlighted={highlightPassenger ? seat.assignment?.passenger_id === highlightPassenger : false} isCaptain={captainPassengerIds ? captainPassengerIds.has(seat.assignment?.passenger_id ?? '') : false} onClick={() => onSeatClick(seat)} />)}
                   {Array.from({ length: Math.max(0, leftCount - left.length) }).map((_, i) => (
-                    <div key={`empty-l-${i}`} className="w-10 h-10" />
+                    <div key={`empty-l-${i}`} className="w-11 h-11" />
                   ))}
                 </div>
 
@@ -79,7 +79,7 @@ export function SeatMap({ seats, vehicleType, onSeatClick, selectedSeat, highlig
                 <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${rightCount}, 1fr)` }}>
                   {right.map(seat => <SeatCell key={seat.id} seat={seat} selected={selectedSeat === seat.id} highlighted={highlightPassenger ? seat.assignment?.passenger_id === highlightPassenger : false} isCaptain={captainPassengerIds ? captainPassengerIds.has(seat.assignment?.passenger_id ?? '') : false} onClick={() => onSeatClick(seat)} />)}
                   {Array.from({ length: Math.max(0, rightCount - right.length) }).map((_, i) => (
-                    <div key={`empty-r-${i}`} className="w-10 h-10" />
+                    <div key={`empty-r-${i}`} className="w-11 h-11" />
                   ))}
                 </div>
               </div>
@@ -126,7 +126,7 @@ function SeatCell({ seat, selected, highlighted, isCaptain, onClick }: {
       onClick={onClick}
       title={occupied ? `${seat.seat_number} — ${seat.assignment?.passenger?.full_name}${isCaptain ? ' (Capitão)' : ''}` : `Assento ${seat.seat_number} — Livre`}
       className={cn(
-        'seat w-10 h-10 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all',
+        'seat w-11 h-11 rounded-lg border-2 flex flex-col items-center justify-center cursor-pointer transition-all',
         'focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-1',
         selected && 'ring-2 ring-amber-500 ring-offset-1 scale-110',
         highlighted && 'ring-2 ring-blue-500 ring-offset-1',

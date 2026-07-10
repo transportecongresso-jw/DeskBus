@@ -49,19 +49,18 @@ export function SearchPage() {
       const { data: congs } = await cQuery
       const congIds = (congs ?? []).map(c => c.id)
 
-      // Search passengers — always filtered by congregation
-      let pQuery = supabase.from('passengers').select('*, guardian:guardian_id(*)')
-      if (congIds.length > 0) pQuery = pQuery.in('congregation_id', congIds)
-      else { setResults([]); setLoading(false); return }
+      // Search passengers server-side — always filtered by congregation
+      if (congIds.length === 0) { setResults([]); setLoading(false); return }
 
-      const q = query.trim().toLowerCase()
-      const { data: passengers } = await pQuery
+      const q = query.trim()
+      const { data: passengers } = await supabase
+        .from('passengers')
+        .select('*, guardian:guardian_id(*)')
+        .in('congregation_id', congIds)
+        .or(`full_name.ilike.%${q}%,document_number.ilike.%${q}%`)
+        .limit(100)
 
-      const matched = (passengers ?? []).filter(p =>
-        p.full_name.toLowerCase().includes(q) ||
-        p.document_number.includes(q) ||
-        (p.guardian as any)?.full_name?.toLowerCase().includes(q)
-      )
+      const matched = passengers ?? []
 
       if (matched.length === 0) { setResults([]); setLoading(false); return }
 

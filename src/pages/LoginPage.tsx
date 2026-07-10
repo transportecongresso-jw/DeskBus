@@ -67,6 +67,9 @@ export function LoginPage() {
               placeholder="••••••••"
               required
               autoComplete="current-password"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
               rightElement={
                 <button
                   type="button"

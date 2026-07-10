@@ -39,7 +39,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
       <div className={cn(
         'relative w-full bg-white dark:bg-stone-800 shadow-2xl animate-fade-in flex flex-col',
         'rounded-t-2xl sm:rounded-2xl',
-        'max-h-[92vh] sm:max-h-[90vh]',
+        'max-h-[92dvh] sm:max-h-[90vh]',
         sizes[size]
       )}>
         {title && (
