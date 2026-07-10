@@ -340,19 +340,23 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
       }
       if (editing) {
         const newCapacity = capacity
+        const typeChanged = type !== editing.type
 
-        // Always read actual seat count from DB — vehicle.capacity may diverge from seats table
-        const { data: excessSeats } = await supabase
+        // ── 1. Fetch all current seats from DB ──────────────────────────────
+        const { data: allSeats } = await supabase
           .from('seats')
           .select('id, seat_number')
           .eq('vehicle_id', editing.id)
-          .gt('seat_number', newCapacity)
 
-        if (excessSeats && excessSeats.length > 0) {
+        const currentSeats = allSeats ?? []
+
+        // ── 2. Block if excess seats (> newCapacity) have active passengers ─
+        const excess = currentSeats.filter(s => s.seat_number > newCapacity)
+        if (excess.length > 0) {
           const { data: blocked } = await supabase
             .from('seat_assignments')
             .select('id')
-            .in('seat_id', excessSeats.map(s => s.id))
+            .in('seat_id', excess.map(s => s.id))
             .eq('status', 'active')
 
           if (blocked && blocked.length > 0) {
@@ -363,29 +367,26 @@ function VehicleForm({ open, onClose, editing, congregations, companies, onSaved
             return
           }
 
-          await supabase.from('seats').delete().in('id', excessSeats.map(s => s.id))
+          await supabase.from('seats').delete().in('id', excess.map(s => s.id))
         }
 
-        // Add missing seats if capacity increased above current max
-        const { data: existingSeats } = await supabase
-          .from('seats')
-          .select('seat_number')
-          .eq('vehicle_id', editing.id)
-          .order('seat_number', { ascending: false })
-          .limit(1)
+        // ── 3. Insert missing seat numbers ───────────────────────────────────
+        const existingNums = new Set(
+          currentSeats.filter(s => s.seat_number <= newCapacity).map(s => s.seat_number)
+        )
+        const missing = Array.from({ length: newCapacity }, (_, i) => i + 1).filter(n => !existingNums.has(n))
+        if (missing.length > 0) {
+          await supabase.from('seats').insert(
+            missing.map(n => ({ vehicle_id: editing.id, seat_number: n, ...seatPosition(n, type), is_driver: false }))
+          )
+        }
 
-        const currentMax = existingSeats?.[0]?.seat_number ?? 0
-        if (currentMax < newCapacity) {
-          const newSeats = Array.from({ length: newCapacity - currentMax }, (_, i) => {
-            const seatNum = currentMax + i + 1
-            return {
-              vehicle_id: editing.id,
-              seat_number: seatNum,
-              ...seatPosition(seatNum, type),
-              is_driver: false,
-            }
-          })
-          await supabase.from('seats').insert(newSeats)
+        // ── 4. Update row/column positions if type changed ───────────────────
+        if (typeChanged) {
+          const remaining = currentSeats.filter(s => s.seat_number <= newCapacity)
+          for (const seat of remaining) {
+            await supabase.from('seats').update(seatPosition(seat.seat_number, type)).eq('id', seat.id)
+          }
         }
 
         const { error } = await supabase.from('vehicles').update(payload).eq('id', editing.id)
